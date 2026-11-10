@@ -1959,15 +1959,20 @@
         <button class="sheet-close" onclick="closeSheet('forceSkipSheet')">✕</button>
       </div>
       <div class="host-4-grid">
-        <button class="host-grid-card" onclick="forceAdvanceStreet()">
+        <button class="host-grid-card" onclick="handleTakeControlCurrentPlayer()">
+          <span class="host-card-icon">🎮</span>
+          <span class="host-card-title">Take Control (Local)</span>
+          <span class="host-card-sub">Switch active seat to Host phone control</span>
+        </button>
+        <button class="host-grid-card" onclick="handleForceAction()">
+          <span class="host-card-icon">💤</span>
+          <span class="host-card-title">Force Check / Fold</span>
+          <span class="host-card-sub">Auto-Check if free, otherwise Fold</span>
+        </button>
+        <button class="host-grid-card" style="grid-column: span 2;" onclick="forceAdvanceStreet()">
           <span class="host-card-icon">➡️</span>
           <span class="host-card-title">Advance Next Street</span>
           <span class="host-card-sub">Move to Flop / Turn / River / Showdown</span>
-        </button>
-        <button class="host-grid-card" onclick="forceCheckOrFoldCurrentPlayer()">
-          <span class="host-card-icon">💤</span>
-          <span class="host-card-title">Skip AFK Player</span>
-          <span class="host-card-sub">Auto-Check if free, otherwise Fold</span>
         </button>
       </div>
     </div>
@@ -2879,17 +2884,141 @@
       return pkt;
     }
 
+    // Mutable ref for incoming MQTT messages so listeners never read stale state closures
+    const handleMqttMessageRef = {
+      current: (_topic, _payloadStr) => {}
+    };
+    let hostContinuousSyncTimer = null;
+    let clientConnectedRoomCode = '';
+
     function createLightweightMqttClient(brokerUrls, onConnected, onTopicMessage, willConfig = null) {
+      handleMqttMessageRef.current = onTopicMessage || ((_t, _p) => {});
+
+      // If official mqtt.min.js is loaded in window.mqtt, use it with QoS 1 & automatic packet buffering
+      if (typeof window !== 'undefined' && window.mqtt && typeof window.mqtt.connect === 'function') {
+        let currentIdx = 0;
+        let client = null;
+        let closedByUser = false;
+        const subs = new Set();
+
+        function connectMqttJs(idx) {
+          if (closedByUser) return;
+          currentIdx = idx % brokerUrls.length;
+          const url = brokerUrls[currentIdx];
+          const cid = 'allin_' + myDeviceId + '_' + Math.random().toString(36).slice(2, 6);
+          const opts = {
+            clientId: cid,
+            clean: true,
+            keepalive: 25,
+            connectTimeout: 4500,
+            reconnectPeriod: 0
+          };
+          if (willConfig && willConfig.topic && willConfig.payload) {
+            opts.will = {
+              topic: willConfig.topic,
+              payload: String(willConfig.payload),
+              qos: Number(willConfig.qos || 1),
+              retain: Boolean(willConfig.retain)
+            };
+          }
+
+          try {
+            if (client) {
+              try { client.end(true); } catch (_) {}
+            }
+            client = window.mqtt.connect(url, opts);
+          } catch (_) {
+            setTimeout(() => connectMqttJs(currentIdx + 1), 1200);
+            return;
+          }
+
+          let fallbackTimer = setTimeout(() => {
+            if (client && !client.connected && !closedByUser) {
+              try { client.end(true); } catch (_) {}
+              connectMqttJs(currentIdx + 1);
+            }
+          }, 5000);
+
+          client.on('connect', () => {
+            clearTimeout(fallbackTimer);
+            updateRelayStatusBadges(true);
+            subs.forEach(t => {
+              try { client.subscribe(t, { qos: 1 }); } catch (_) {}
+            });
+            if (onConnected) onConnected();
+          });
+
+          client.on('message', (topic, payloadBuf) => {
+            try {
+              const payloadStr = typeof payloadBuf === 'string'
+                ? payloadBuf
+                : new TextDecoder().decode(payloadBuf);
+              if (handleMqttMessageRef.current) {
+                handleMqttMessageRef.current(topic, payloadStr);
+              }
+            } catch (_) {}
+          });
+
+          client.on('close', () => {
+            clearTimeout(fallbackTimer);
+            if (!closedByUser) {
+              updateRelayStatusBadges(false);
+              setTimeout(() => connectMqttJs(currentIdx + 1), 1400);
+            }
+          });
+
+          client.on('error', () => {});
+        }
+
+        connectMqttJs(0);
+
+        return {
+          subscribe(topic) {
+            subs.add(topic);
+            if (client && client.connected) {
+              try { client.subscribe(topic, { qos: 1 }); } catch (_) {}
+            }
+          },
+          unsubscribe(topic) {
+            subs.delete(topic);
+            if (client && client.connected) {
+              try { client.unsubscribe(topic); } catch (_) {}
+            }
+          },
+          publish(topic, objOrStr, retain = false) {
+            const str = typeof objOrStr === 'string' ? objOrStr : JSON.stringify(objOrStr);
+            if (client) {
+              try {
+                client.publish(topic, str, { qos: 1, retain: Boolean(retain) });
+                return true;
+              } catch (_) {}
+            }
+            return false;
+          },
+          isOpen() {
+            return Boolean(client && client.connected);
+          },
+          close() {
+            closedByUser = true;
+            try { if (client) client.end(true); } catch (_) {}
+          }
+        };
+      }
+
+      // Offline / Zero-CDN Native MQTT v3.1.1 over WebSocket Fallback with CONNACK Queueing
       let currentIdx = 0;
       let sock = null;
+      let mqttConnAcked = false;
       let pingTimer = null;
       let closedByUser = false;
       let rxBuffer = new Uint8Array(0);
       const subs = new Set();
+      const pendingPublishes = [];
       let pktIdCounter = 1;
 
       function connectNext(idx) {
         if (closedByUser) return;
+        mqttConnAcked = false;
         currentIdx = idx % brokerUrls.length;
         const url = brokerUrls[currentIdx];
 
@@ -2943,15 +3072,20 @@
             if (msgType === 2) {
               // CONNACK
               clearTimeout(handshakeTimer);
+              mqttConnAcked = true;
               updateRelayStatusBadges(true);
               subs.forEach(t => {
                 if (sock && sock.readyState === WebSocket.OPEN) {
                   sock.send(buildMqttSubscribePacket(t, pktIdCounter++));
                 }
               });
+              while (pendingPublishes.length > 0 && sock && sock.readyState === WebSocket.OPEN) {
+                const item = pendingPublishes.shift();
+                sock.send(buildMqttPublishPacket(item.topic, item.str, item.retain));
+              }
               clearInterval(pingTimer);
               pingTimer = setInterval(() => {
-                if (sock && sock.readyState === WebSocket.OPEN) {
+                if (sock && sock.readyState === WebSocket.OPEN && mqttConnAcked) {
                   sock.send(new Uint8Array([0xc0, 0x00])); // PINGREQ
                 }
               }, 15000);
@@ -2966,7 +3100,9 @@
               if (pktBody.length >= payloadStart) {
                 const topicStr = new TextDecoder().decode(pktBody.slice(2, 2 + topicLen));
                 const payloadStr = new TextDecoder().decode(pktBody.slice(payloadStart));
-                if (onTopicMessage) onTopicMessage(topicStr, payloadStr);
+                if (handleMqttMessageRef.current) {
+                  handleMqttMessageRef.current(topicStr, payloadStr);
+                }
               }
             }
           }
@@ -2979,6 +3115,7 @@
         sock.onclose = () => {
           clearTimeout(handshakeTimer);
           clearInterval(pingTimer);
+          mqttConnAcked = false;
           if (!closedByUser) {
             updateRelayStatusBadges(false);
             setTimeout(() => connectNext(currentIdx + 1), 1400);
@@ -2991,31 +3128,36 @@
       return {
         subscribe(topic) {
           subs.add(topic);
-          if (sock && sock.readyState === WebSocket.OPEN) {
+          if (sock && sock.readyState === WebSocket.OPEN && mqttConnAcked) {
             sock.send(buildMqttSubscribePacket(topic, pktIdCounter++));
           }
         },
         unsubscribe(topic) {
           subs.delete(topic);
-          if (sock && sock.readyState === WebSocket.OPEN) {
+          if (sock && sock.readyState === WebSocket.OPEN && mqttConnAcked) {
             sock.send(buildMqttUnsubscribePacket(topic, pktIdCounter++));
           }
         },
         publish(topic, objOrStr, retain = false) {
           const str = typeof objOrStr === 'string' ? objOrStr : JSON.stringify(objOrStr);
-          if (sock && sock.readyState === WebSocket.OPEN) {
+          if (sock && sock.readyState === WebSocket.OPEN && mqttConnAcked) {
             try {
               sock.send(buildMqttPublishPacket(topic, str, retain));
               return true;
             } catch (_) {}
+          } else {
+            if (pendingPublishes.length > 25) pendingPublishes.shift();
+            pendingPublishes.push({ topic, str, retain });
+            return true;
           }
           return false;
         },
         isOpen() {
-          return Boolean(sock && sock.readyState === WebSocket.OPEN);
+          return Boolean(sock && sock.readyState === WebSocket.OPEN && mqttConnAcked);
         },
         close() {
           closedByUser = true;
+          mqttConnAcked = false;
           clearInterval(pingTimer);
           try { if (sock) sock.close(); } catch (_) {}
         }
@@ -3028,6 +3170,7 @@
 
     function saveAndBroadcastState(eventCue = null) {
       state.phase = state.status === 'PLAYING' ? 'game' : state.status === 'CHAMPION' ? 'champion' : 'lobby';
+      state.screen = state.phase;
       const currentActor = state.players[state.turnIdx];
       state.currentTurnPlayerId = (state.status === 'PLAYING' && state.streetIndex < 4 && currentActor) ? currentActor.id : null;
       state.pot = getTotalPot();
@@ -3042,8 +3185,9 @@
 
       if (netRole === 'host') {
         const packet = {
-          type: 'STATE_UPDATE',
+          type: 'SYNC_STATE',
           syncType: state.status === 'LOBBY' ? 'LOBBY_STATE' : 'GAME_STATE',
+          screen: state.screen,
           phase: state.phase,
           room: state.roomCode,
           pot: state.pot,
@@ -3053,22 +3197,27 @@
           highestBet: state.highestBet,
           minRaise: state.minRaise,
           players: state.players,
+          gameState: state,
           state,
           eventCue,
           ts: Date.now()
         };
-        if (mqttClient && mqttClient.isOpen()) {
+        if (mqttClient) {
           mqttClient.publish(getClientsTopic(state.roomCode), packet, true);
         }
         if (wsConnection && wsConnection.readyState === WebSocket.OPEN) {
-          wsConnection.send(JSON.stringify({
-            type: 'STATE_SYNC',
-            room: state.roomCode,
-            state,
-            eventCue
-          }));
+          wsConnection.send(JSON.stringify(packet));
         }
       }
+    }
+
+    function startHostContinuousSync() {
+      clearInterval(hostContinuousSyncTimer);
+      hostContinuousSyncTimer = setInterval(() => {
+        if (netRole === 'host' && mqttClient && mqttClient.isOpen()) {
+          saveAndBroadcastState(null);
+        }
+      }, 2200);
     }
 
     function pushUndoSnapshot() {
@@ -3278,21 +3427,28 @@
         showToast('Add at least 2 players to start');
         return;
       }
-      state.players.forEach((p, idx) => {
-        p.name = (p.name || '').trim() || `Player ${idx + 1}`;
-        p.stack = state.startingStack;
-        p.isSpectator = false;
-        p.status = 'active';
-        p.isLocal = p.mode !== 'wifi';
-        if (p.isConnected === undefined) p.isConnected = true;
-      });
+      state.players = state.players.map((p, idx) => ({
+        ...p,
+        name: (p.name || '').trim() || `Player ${idx + 1}`,
+        stack: state.startingStack,
+        isSpectator: false,
+        status: 'active',
+        isLocal: p.mode !== 'wifi' || p.takenOverByHost === true,
+        isRemote: p.mode === 'wifi' && !p.takenOverByHost,
+        isConnected: p.isConnected !== undefined ? p.isConnected : true
+      }));
       state.status = 'PLAYING';
       state.phase = 'game';
+      state.screen = 'game';
       state.handNumber = 0;
       state.dealerIdx = 0;
       undoHistory = [];
       showScreen(null);
       startNewHand(false);
+      startHostContinuousSync();
+      // Immediately send redundant SYNC_STATE pulses so no Guest phone misses game start
+      setTimeout(() => saveAndBroadcastState('CHIP_THROW'), 250);
+      setTimeout(() => saveAndBroadcastState(null), 800);
     }
 
     function resetTableNewGame() {
@@ -3454,43 +3610,88 @@
       }
     }
 
-    function switchSeatToLocalControl(playerId) {
-      const p = state.players.find(pl => pl.id === playerId);
-      if (!p) return;
+    function handleTakeControl(targetPlayerId) {
+      if (!targetPlayerId) return;
+      const target = state.players.find(pl => pl.id === targetPlayerId);
+      if (!target) return;
       pushUndoSnapshot();
-      p.mode = 'local';
-      p.isLocal = true;
-      p.isConnected = true;
-      delete lastSeen[playerId];
+
+      state.players = state.players.map(p =>
+        p.id === targetPlayerId
+          ? {
+              ...p,
+              mode: 'local',
+              isLocal: true,
+              isRemote: false,
+              isConnected: true,
+              takenOverByHost: true
+            }
+          : p
+      );
+      delete lastSeen[targetPlayerId];
+
       closeSheet('hostDrawerSheet');
+      closeSheet('forceSkipSheet');
+      Sound.chipThrow(1.12);
       saveAndBroadcastState();
       renderLobbySettingsAndRoster();
+      renderHostDisconnectedPlayersSection();
       renderAll();
-      showToast(`🏠 ${p.name} switched to Local Control on Host phone`);
+      showToast(`🎮 Host took control of ${target.name}`);
+    }
+
+    function switchSeatToLocalControl(playerId) {
+      handleTakeControl(playerId);
+    }
+
+    function handleTakeControlCurrentPlayer() {
+      const actor = state.players[state.turnIdx];
+      if (!actor) return;
+      handleTakeControl(actor.id);
+    }
+
+    function handleForceAction(targetPlayerId = null) {
+      closeSheet('forceSkipSheet');
+      closeSheet('hostDrawerSheet');
+      if (state.status !== 'PLAYING' || state.streetIndex === 4) return;
+      const actor = state.players[state.turnIdx];
+      if (!actor) return;
+      if (targetPlayerId && actor.id !== targetPlayerId) {
+        foldAndRemovePlayer(targetPlayerId);
+        return;
+      }
+      const toCall = Math.max(0, state.currentBet - actor.streetBet);
+      if (toCall === 0) {
+        executeCheckOrCall();
+      } else {
+        executeFold();
+      }
     }
 
     function renderHostDisconnectedPlayersSection() {
       const sec = document.getElementById('hostDisconnectedPlayersSection');
       const list = document.getElementById('hostDisconnectedPlayersList');
       if (!sec || !list) return;
-      const wifiPlayers = state.players.filter(p => p.mode === 'wifi');
-      if (wifiPlayers.length === 0) {
+      const remoteOrTakenPlayers = state.players.filter(p => p.mode === 'wifi' || p.takenOverByHost);
+      if (remoteOrTakenPlayers.length === 0) {
         sec.style.display = 'none';
         return;
       }
       sec.style.display = 'block';
       list.innerHTML = '';
-      wifiPlayers.forEach(p => {
+      remoteOrTakenPlayers.forEach(p => {
         const row = document.createElement('div');
         row.style.cssText = 'display:flex; align-items:center; justify-content:space-between; gap:6px; padding:8px 10px; border-radius:10px; background:var(--surface-2); border:1px solid var(--border-subtle);';
-        const statusDot = p.isConnected === false ? '⚠️ Offline' : '🟢 Connected';
+        const statusDot = p.takenOverByHost
+          ? '🎮 Local (Taken Over)'
+          : (p.isConnected === false ? '⚠️ Offline' : '🟢 Connected');
         row.innerHTML = `
           <div style="display:flex; flex-direction:column;">
             <span style="font-size:0.84rem; font-weight:800;">${escapeHtml(p.name)}</span>
             <span style="font-size:0.68rem; color:var(--text-secondary);">${statusDot} • ${formatMoney(p.stack)}</span>
           </div>
           <div style="display:flex; gap:6px;">
-            <button onclick="switchSeatToLocalControl('${escapeHtml(p.id)}')" style="padding:5px 8px; border-radius:8px; background:var(--surface-3); border:1px solid var(--border-bright); color:var(--text-primary); font-size:0.7rem; font-weight:800; cursor:pointer;">Switch to Local</button>
+            ${!p.takenOverByHost ? `<button onclick="handleTakeControl('${escapeHtml(p.id)}')" style="padding:5px 8px; border-radius:8px; background:var(--emerald); border:1px solid var(--emerald); color:#032218; font-size:0.7rem; font-weight:900; cursor:pointer;">🎮 Take Control</button>` : ''}
             <button onclick="foldAndRemovePlayer('${escapeHtml(p.id)}')" style="padding:5px 8px; border-radius:8px; background:rgba(239,68,68,0.18); border:1px solid rgba(239,68,68,0.45); color:#FCA5A5; font-size:0.7rem; font-weight:800; cursor:pointer;">Fold & Remove</button>
           </div>
         `;
@@ -3502,6 +3703,7 @@
       netRole = 'client';
       localStorage.setItem(CLIENT_ROLE_KEY, 'client');
       clearInterval(hostPresenceWatchdogTimer);
+      clearInterval(hostContinuousSyncTimer);
       showScreen('joinLobbyScreen');
       const codeInput = document.getElementById('clientRoomCodeInput');
       if (codeInput) {
@@ -3534,7 +3736,7 @@
       localStorage.setItem(ROOM_CODE_KEY, targetRoom);
       localStorage.setItem(CLIENT_NAME_KEY, name);
       localStorage.setItem(CLIENT_ROLE_KEY, 'client');
-      connectWebSocketAsClient(targetRoom, name);
+      connectWebSocketAsClient(targetRoom, name, true);
     }
 
     function sendClientRebuyRequest() {
@@ -3546,7 +3748,7 @@
         name: me ? me.name : (pendingClientName || 'Spectator')
       };
       let sent = false;
-      if (mqttClient && mqttClient.isOpen()) {
+      if (mqttClient) {
         sent = mqttClient.publish(getHostTopic(state.roomCode), reqPacket, false);
       }
       if (wsConnection && wsConnection.readyState === WebSocket.OPEN) {
@@ -3573,7 +3775,7 @@
 
       if (msg.type === 'PING' && msg.playerId) {
         const existing = state.players.find(p => p.id === msg.playerId);
-        if (existing && existing.isConnected === false) {
+        if (existing && !existing.takenOverByHost && existing.isConnected === false) {
           existing.isConnected = true;
           renderLobbySettingsAndRoster();
           renderAll();
@@ -3592,13 +3794,18 @@
         const existing = state.players.find(p => p.id === msg.playerId);
         let isNewPlayer = false;
         if (existing) {
-          const wasOffline = existing.isConnected === false;
           existing.name = msg.name;
-          existing.mode = 'wifi';
-          existing.isLocal = false;
-          existing.isConnected = true;
-          if (wasOffline) {
-            showToast(`🟢 ${msg.name} rejoined their seat!`);
+          // Only restore to Wi-Fi remote mode if Host hasn't taken over the seat mid-game (or if in Lobby / explicit rejoin)
+          if (state.status === 'LOBBY' || !existing.takenOverByHost || msg.explicitRejoin) {
+            const wasOffline = existing.isConnected === false || existing.takenOverByHost;
+            existing.mode = 'wifi';
+            existing.isLocal = false;
+            existing.isRemote = true;
+            existing.takenOverByHost = false;
+            existing.isConnected = true;
+            if (wasOffline && state.status !== 'LOBBY') {
+              showToast(`🟢 ${msg.name} rejoined their seat!`);
+            }
           }
         } else if (state.players.length < 10) {
           isNewPlayer = true;
@@ -3607,6 +3814,8 @@
             name: msg.name,
             mode: 'wifi',
             isLocal: false,
+            isRemote: true,
+            takenOverByHost: false,
             isConnected: true,
             status: 'active',
             isSpectator: false,
@@ -3650,7 +3859,6 @@
         MQTT_BROKERS,
         () => {
           mqttClient.subscribe(getHostTopic(state.roomCode));
-          mqttClient.subscribe(getClientsTopic(state.roomCode));
           saveAndBroadcastState();
         },
         (_topic, payloadStr) => {
@@ -3662,6 +3870,7 @@
         },
         null
       );
+      startHostContinuousSync();
 
       // Optional Local LAN WebSocket fallback if running node server.js locally
       try {
@@ -3687,9 +3896,10 @@
 
     function handleIncomingClientStateMessage(msg) {
       if (!msg || typeof msg !== 'object') return;
-      const incomingState = msg.state || (Array.isArray(msg.players) ? msg : null);
+      const incomingState = msg.gameState || msg.state || (Array.isArray(msg.players) ? msg : null);
       if (
-        (msg.type === 'STATE_UPDATE' ||
+        (msg.type === 'SYNC_STATE' ||
+          msg.type === 'STATE_UPDATE' ||
           msg.type === 'LOBBY_STATE' ||
           msg.type === 'GAME_STATE' ||
           msg.type === 'STATE_SYNC' ||
@@ -3718,14 +3928,22 @@
             }).join('');
           }
         } else if (pendingClientName && state.status === 'LOBBY') {
-          // Host doesn't have us in the lobby roster yet -> immediately send JOIN
-          publishClientJoinPacket(state.roomCode || roomCode, pendingClientName);
+          publishClientJoinPacket(state.roomCode || roomCode, pendingClientName, false);
         }
 
-        const isGamePhase = msg.phase === 'game' || state.phase === 'game' || state.status === 'PLAYING';
+        const isGamePhase =
+          msg.screen === 'game' ||
+          msg.phase === 'game' ||
+          state.screen === 'game' ||
+          state.phase === 'game' ||
+          state.status === 'PLAYING';
+
         if (isGamePhase) {
+          state.status = 'PLAYING';
+          state.phase = 'game';
+          state.screen = 'game';
           showScreen(null);
-        } else if (state.status === 'CHAMPION' || msg.phase === 'champion') {
+        } else if (state.status === 'CHAMPION' || msg.phase === 'champion' || msg.screen === 'champion') {
           const champ = state.players.find(p => !p.isSpectator && p.stack > 0) || state.players[0];
           showChampionCelebration(champ);
         } else if (state.status === 'LOBBY' && netRole === 'client') {
@@ -3740,6 +3958,7 @@
           state.streetIndex < 4 &&
           newTurnActor &&
           newTurnActor.id === myDeviceId &&
+          !newTurnActor.takenOverByHost &&
           !newTurnActor.folded &&
           !newTurnActor.isSpectator &&
           !newTurnActor.allIn &&
@@ -3767,14 +3986,23 @@
 
     function ensureClientRelayReady(targetRoomCode) {
       const cleanRoom = (targetRoomCode || roomCode || 'POKR').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
-      if (mqttClient && mqttClient.isOpen() && roomCode === cleanRoom) {
+      handleMqttMessageRef.current = (_topic, payloadStr) => {
+        if (!payloadStr) return;
+        try {
+          const msg = JSON.parse(payloadStr);
+          handleIncomingClientStateMessage(msg);
+        } catch (_) {}
+      };
+
+      if (mqttClient && clientConnectedRoomCode === cleanRoom) {
         mqttClient.subscribe(getClientsTopic(cleanRoom));
-        updateRelayStatusBadges(true);
+        if (mqttClient.isOpen()) updateRelayStatusBadges(true);
         return;
       }
       if (mqttClient) {
         mqttClient.close();
       }
+      clientConnectedRoomCode = cleanRoom;
       updateRelayStatusBadges(false);
 
       // Layer B: Configure MQTT Last Will & Testament (LWT) so broker notifies Host on sudden drop
@@ -3794,28 +4022,23 @@
         () => {
           mqttClient.subscribe(getClientsTopic(cleanRoom));
           if (pendingClientName) {
-            publishClientJoinPacket(cleanRoom, pendingClientName);
+            publishClientJoinPacket(cleanRoom, pendingClientName, true);
           }
         },
-        (_topic, payloadStr) => {
-          if (!payloadStr) return;
-          try {
-            const msg = JSON.parse(payloadStr);
-            handleIncomingClientStateMessage(msg);
-          } catch (_) {}
-        },
+        handleMqttMessageRef.current,
         lwtConfig
       );
     }
 
-    function publishClientJoinPacket(targetRoom, playerName) {
+    function publishClientJoinPacket(targetRoom, playerName, explicitRejoin = false) {
       const joinPayload = {
         type: 'JOIN',
         room: targetRoom,
         playerId: myDeviceId,
-        name: playerName
+        name: playerName,
+        explicitRejoin: Boolean(explicitRejoin)
       };
-      if (mqttClient && mqttClient.isOpen()) {
+      if (mqttClient) {
         mqttClient.publish(getHostTopic(targetRoom), joinPayload, false);
       }
       if (wsConnection && wsConnection.readyState === WebSocket.OPEN) {
@@ -3823,7 +4046,8 @@
           type: 'LOBBY_JOIN',
           room: targetRoom,
           playerId: myDeviceId,
-          name: playerName
+          name: playerName,
+          explicitRejoin: Boolean(explicitRejoin)
         }));
       }
     }
@@ -3838,7 +4062,7 @@
           playerId: myDeviceId,
           name: pendingClientName
         };
-        if (mqttClient && mqttClient.isOpen()) {
+        if (mqttClient) {
           mqttClient.publish(getHostTopic(targetRoom), pingPayload, false);
         }
         if (wsConnection && wsConnection.readyState === WebSocket.OPEN) {
@@ -3847,7 +4071,7 @@
       }, 3000);
     }
 
-    function connectWebSocketAsClient(targetRoomCode, playerName) {
+    function connectWebSocketAsClient(targetRoomCode, playerName, explicitRejoin = false) {
       const cleanRoom = (targetRoomCode || 'POKR').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
       roomCode = cleanRoom;
       state.roomCode = cleanRoom;
@@ -3862,7 +4086,7 @@
 
       ensureClientRelayReady(cleanRoom);
       mqttClient.subscribe(getClientsTopic(cleanRoom));
-      publishClientJoinPacket(cleanRoom, playerName);
+      publishClientJoinPacket(cleanRoom, playerName, explicitRejoin);
       startClientHeartbeat(cleanRoom);
 
       // Automatic Handshake & Heartbeat: retry every 1.5 seconds until Host includes myDeviceId in roster
@@ -3872,7 +4096,7 @@
           clearInterval(clientJoinRetryTimer);
           return;
         }
-        publishClientJoinPacket(cleanRoom, playerName);
+        publishClientJoinPacket(cleanRoom, playerName, explicitRejoin);
       }, 1500);
 
       // Optional local WebSocket fallback when running on same local server
@@ -4335,10 +4559,10 @@
       const actor = state.players[state.turnIdx];
       if (!actor || actor.folded || actor.isSpectator || actor.allIn) return false;
       if (netRole === 'client') {
-        return actor.id === myDeviceId;
+        return actor.id === myDeviceId && !actor.takenOverByHost;
       }
-      // On Host phone: only unlock bottom chip rack when active turn belongs to Host or a Local Player
-      return actor.mode !== 'wifi' || actor.isLocal === true;
+      // On Host phone: unlock bottom chip rack whenever active turn belongs to Host, a Local Player, or a seat Taken Over by Host
+      return Boolean(actor.takenOverByHost === true || actor.isLocal === true || actor.mode === 'host' || actor.mode === 'local');
     }
 
     function getStagedDeltaSum() {
@@ -5040,12 +5264,7 @@
     }
 
     function forceCheckOrFoldCurrentPlayer() {
-      closeSheet('forceSkipSheet');
-      const actor = state.players[state.turnIdx];
-      if (!actor) return;
-      const toCall = Math.max(0, state.currentBet - actor.streetBet);
-      if (toCall === 0) executeCheckOrCall();
-      else executeFold();
+      handleForceAction();
     }
 
     function bumpPot() {
@@ -5200,7 +5419,7 @@
 
           seat.onclick = () => {
             if (netRole === 'host' && state.streetIndex === 4) openAwardPotModal(true);
-            else if (netRole === 'host' && isDisconnected) openHostDrawer();
+            else if (netRole === 'host' && (isDisconnected || p.mode === 'wifi')) openHostDrawer();
           };
         }
 
@@ -5280,15 +5499,16 @@
         if (state.status === 'PLAYING' && state.streetIndex < 4 && actor && !canAct) {
           waitBanner.classList.add('visible');
           if (netRole === 'client') {
-            waitPrimary.textContent = `⏳ Waiting for ${actor.name}...`;
+            const takenNote = (actor.id === myDeviceId && actor.takenOverByHost) ? ' (Host took local control)' : '';
+            waitPrimary.textContent = `⏳ Waiting for ${actor.name}${takenNote}...`;
             waitRight.innerHTML = myPlayer ? `Your Stack: ${formatMoney(myPlayer.stack)}` : '';
           } else {
             // Host phone waiting on a connected Wi-Fi Guest
-            const offlineTag = actor.isConnected === false ? ' ⚠️ Offline' : ' (On their phone)';
-            waitPrimary.textContent = `📱 Waiting for ${actor.name}${offlineTag}...`;
+            const offlineTag = actor.isConnected === false ? ' ⚠️ Offline' : ' (Phone)';
+            waitPrimary.textContent = `📱 ${actor.name}'s Turn${offlineTag}`;
             waitRight.innerHTML = `
-              <button onclick="forceCheckOrFoldCurrentPlayer()" style="padding:4px 8px; border-radius:8px; background:rgba(239,68,68,0.18); border:1px solid rgba(239,68,68,0.45); color:#FCA5A5; font-family:var(--font-sans); font-size:0.68rem; font-weight:800; cursor:pointer;">Force Fold / Skip</button>
-              <button onclick="switchSeatToLocalControl('${escapeHtml(actor.id)}')" style="padding:4px 8px; border-radius:8px; background:var(--surface-3); border:1px solid var(--border-bright); color:var(--text-primary); font-family:var(--font-sans); font-size:0.68rem; font-weight:800; cursor:pointer;">Local</button>
+              <button onclick="handleTakeControl('${escapeHtml(actor.id)}')" style="padding:5px 10px; border-radius:8px; background:var(--emerald); border:1px solid var(--emerald); color:#032218; font-family:var(--font-sans); font-size:0.72rem; font-weight:900; cursor:pointer;">🎮 Take Control</button>
+              <button onclick="handleForceAction('${escapeHtml(actor.id)}')" style="padding:5px 9px; border-radius:8px; background:rgba(239,68,68,0.18); border:1px solid rgba(239,68,68,0.45); color:#FCA5A5; font-family:var(--font-sans); font-size:0.72rem; font-weight:800; cursor:pointer;">⏭ Force Check/Fold</button>
             `;
           }
         } else {
