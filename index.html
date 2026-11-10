@@ -14,6 +14,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <link rel="manifest" href="./manifest.json" />
+  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js" defer></script>
   <style>
     :root {
       --bg-felt: #0B1311;
@@ -1541,7 +1542,7 @@
       <div class="lobby-top-bar">
         <button class="lobby-back-btn" onclick="showScreen('homeScreen')">← Home</button>
         <span class="lobby-title">Host Waiting Lobby</span>
-        <span style="width:52px;"></span>
+        <span id="hostRelayStatusBadge" style="font-size:0.68rem; font-weight:800; padding:4px 8px; border-radius:999px; background:rgba(16,185,129,0.12); border:1px solid rgba(16,185,129,0.35); color:#A7F3D0; white-space:nowrap;">🟡 Connecting...</span>
       </div>
 
       <!-- Tap-to-Cycle Settings Pill Bar -->
@@ -1560,9 +1561,12 @@
       <div class="qr-banner">
         <div id="qrCodeContainer" class="qr-svg-wrap" title="Scan with phone camera to join"></div>
         <div class="qr-info">
-          <span id="qrRoomCodeTag" class="qr-room-tag">ROOM: MAIN</span>
-          <span class="qr-headline">Scan to Join Table</span>
-          <span id="qrJoinUrlText" class="qr-url-text">Connecting local hotspot...</span>
+          <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+            <span id="qrRoomCodeTag" class="qr-room-tag">ROOM: POKR</span>
+            <button onclick="regenerateRoomCode()" style="font-size:0.65rem; font-weight:800; color:var(--text-secondary); background:var(--surface-3); border:1px solid var(--border-subtle); border-radius:6px; padding:2px 6px;">New Code</button>
+          </div>
+          <span class="qr-headline">Scan or Enter Room Code</span>
+          <span id="qrJoinUrlText" class="qr-url-text">Connecting cloud relay...</span>
         </div>
       </div>
 
@@ -1594,7 +1598,7 @@
       <div class="lobby-top-bar">
         <button class="lobby-back-btn" onclick="showScreen('homeScreen')">← Home</button>
         <span class="lobby-title">Join Friend's Table</span>
-        <span style="width:52px;"></span>
+        <span id="clientRelayStatusBadge" style="font-size:0.68rem; font-weight:800; padding:4px 8px; border-radius:999px; background:rgba(16,185,129,0.12); border:1px solid rgba(16,185,129,0.35); color:#A7F3D0; white-space:nowrap;">🟡 Connecting...</span>
       </div>
 
       <div style="display:flex; flex-direction:column; gap:10px;">
@@ -1604,8 +1608,8 @@
         </div>
 
         <div style="background:var(--surface-2); border:1px solid var(--border-subtle); border-radius:14px; padding:10px 12px;">
-          <div class="cycle-pill-label" style="margin-bottom:4px;">Host Server Address (Auto-filled from QR)</div>
-          <input id="clientHostUrlInput" type="text" placeholder="ws://192.168.x.x:3000" style="font-family:var(--font-mono); font-size:0.86rem; width:100%; color:var(--text-secondary);" />
+          <div class="cycle-pill-label" style="margin-bottom:4px;">4-Letter Room Code (Auto-filled from QR)</div>
+          <input id="clientRoomCodeInput" type="text" maxlength="8" placeholder="POKR" style="font-family:var(--font-mono); font-size:1.15rem; font-weight:900; letter-spacing:0.14em; text-transform:uppercase; width:100%; color:var(--gold);" />
         </div>
 
         <button id="clientJoinSubmitBtn" class="start-game-night-btn" onclick="submitClientJoinLobby()">
@@ -1613,7 +1617,7 @@
         </button>
 
         <div id="clientWaitingBox" style="display:none; text-align:center; padding:14px; border-radius:14px; background:var(--surface-2); border:1px solid var(--emerald);">
-          <div style="font-weight:800; color:var(--emerald); font-size:0.95rem;">✓ You're in the Lobby!</div>
+          <div id="clientWaitingTitle" style="font-weight:800; color:var(--emerald); font-size:0.95rem;">✓ Handshaking with Host...</div>
           <div id="clientWaitingSub" style="font-size:0.8rem; color:var(--text-secondary); margin-top:4px;">Waiting for the Host to tap START GAME NIGHT...</div>
         </div>
       </div>
@@ -2522,14 +2526,36 @@
       localStorage.setItem(DEVICE_ID_KEY, myDeviceId);
     }
 
+    const ROOM_CODE_KEY = 'felt_room_code_v3';
+    function generateRandomRoomCode() {
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+      let code = '';
+      for (let i = 0; i < 4; i++) {
+        code += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+      return code;
+    }
+
     let netRole = 'host';
     let wsConnection = null;
-    let roomCode = 'MAIN';
+    let mqttClient = null;
+    let relayConnected = false;
+    let activeBrokerIndex = 0;
+    let clientJoinRetryTimer = null;
+    let clientHasJoinedRoster = false;
+    let pendingClientName = '';
+
+    const MQTT_BROKERS = [
+      'wss://broker.emqx.io:8084/mqtt',
+      'wss://broker.hivemq.com:8884/mqtt'
+    ];
+
+    let roomCode = (localStorage.getItem(ROOM_CODE_KEY) || 'POKR').toUpperCase();
     let undoHistory = [];
 
     let state = {
       status: 'LOBBY',
-      roomCode: 'MAIN',
+      roomCode: roomCode,
       startingStack: 1000,
       smallBlind: 5,
       bigBlind: 10,
@@ -2590,17 +2616,274 @@
       });
     }
 
+    function getHostTopic(code) {
+      return `allin-poker/${String(code || state.roomCode || 'POKR').toUpperCase()}/host`;
+    }
+
+    function getClientsTopic(code) {
+      return `allin-poker/${String(code || state.roomCode || 'POKR').toUpperCase()}/clients`;
+    }
+
+    function updateRelayStatusBadges(isConnected, customLabel = '') {
+      relayConnected = isConnected;
+      const text = customLabel || (isConnected ? '🟢 Relay Connected' : '🟡 Connecting Relay...');
+      ['hostRelayStatusBadge', 'clientRelayStatusBadge'].forEach(id => {
+        const badge = document.getElementById(id);
+        if (!badge) return;
+        badge.textContent = text;
+        if (isConnected) {
+          badge.style.background = 'rgba(16,185,129,0.16)';
+          badge.style.borderColor = 'rgba(16,185,129,0.55)';
+          badge.style.color = '#6EE7B7';
+        } else {
+          badge.style.background = 'rgba(245,158,11,0.14)';
+          badge.style.borderColor = 'rgba(245,158,11,0.4)';
+          badge.style.color = '#FDE68A';
+        }
+      });
+    }
+
+    /* ==========================================================
+       ZERO-DEPENDENCY NATIVE MQTT v3.1.1 OVER WSS ENGINE
+       Works with wss://broker.emqx.io:8084/mqtt & HiveMQ fallback
+       even if external CDN scripts are blocked or cached offline.
+       ========================================================== */
+    function encodeMqttRemainingLength(len) {
+      const bytes = [];
+      do {
+        let digit = len % 128;
+        len = Math.floor(len / 128);
+        if (len > 0) digit |= 0x80;
+        bytes.push(digit);
+      } while (len > 0);
+      return bytes;
+    }
+
+    function encodeMqttUtf8(str) {
+      const enc = new TextEncoder().encode(str);
+      const out = new Uint8Array(2 + enc.length);
+      out[0] = (enc.length >> 8) & 0xff;
+      out[1] = enc.length & 0xff;
+      out.set(enc, 2);
+      return out;
+    }
+
+    function buildMqttConnectPacket(clientId) {
+      const protoName = encodeMqttUtf8('MQTT');
+      const protoLevel = 0x04; // v3.1.1
+      const connectFlags = 0x02; // Clean session
+      const keepAliveHi = 0x00;
+      const keepAliveLo = 0x3c; // 60s
+      const clientIdBytes = encodeMqttUtf8(clientId);
+
+      const varHeaderAndPayload = new Uint8Array(protoName.length + 4 + clientIdBytes.length);
+      let offset = 0;
+      varHeaderAndPayload.set(protoName, offset); offset += protoName.length;
+      varHeaderAndPayload[offset++] = protoLevel;
+      varHeaderAndPayload[offset++] = connectFlags;
+      varHeaderAndPayload[offset++] = keepAliveHi;
+      varHeaderAndPayload[offset++] = keepAliveLo;
+      varHeaderAndPayload.set(clientIdBytes, offset);
+
+      const remBytes = encodeMqttRemainingLength(varHeaderAndPayload.length);
+      const pkt = new Uint8Array(1 + remBytes.length + varHeaderAndPayload.length);
+      pkt[0] = 0x10; // CONNECT
+      pkt.set(remBytes, 1);
+      pkt.set(varHeaderAndPayload, 1 + remBytes.length);
+      return pkt;
+    }
+
+    function buildMqttSubscribePacket(topic, packetId = 1) {
+      const topicBytes = encodeMqttUtf8(topic);
+      const bodyLen = 2 + topicBytes.length + 1;
+      const remBytes = encodeMqttRemainingLength(bodyLen);
+      const pkt = new Uint8Array(1 + remBytes.length + bodyLen);
+      let idx = 0;
+      pkt[idx++] = 0x82; // SUBSCRIBE (QoS 1)
+      remBytes.forEach(b => { pkt[idx++] = b; });
+      pkt[idx++] = (packetId >> 8) & 0xff;
+      pkt[idx++] = packetId & 0xff;
+      pkt.set(topicBytes, idx); idx += topicBytes.length;
+      pkt[idx++] = 0x00; // Requested QoS 0
+      return pkt;
+    }
+
+    function buildMqttPublishPacket(topic, payloadStr, retain = false) {
+      const topicBytes = encodeMqttUtf8(topic);
+      const payloadBytes = new TextEncoder().encode(payloadStr);
+      const bodyLen = topicBytes.length + payloadBytes.length;
+      const remBytes = encodeMqttRemainingLength(bodyLen);
+      const pkt = new Uint8Array(1 + remBytes.length + bodyLen);
+      let idx = 0;
+      pkt[idx++] = 0x30 | (retain ? 0x01 : 0x00); // PUBLISH QoS 0 + optional retain
+      remBytes.forEach(b => { pkt[idx++] = b; });
+      pkt.set(topicBytes, idx); idx += topicBytes.length;
+      pkt.set(payloadBytes, idx);
+      return pkt;
+    }
+
+    function createLightweightMqttClient(brokerUrls, onConnected, onTopicMessage) {
+      let currentIdx = 0;
+      let sock = null;
+      let pingTimer = null;
+      let closedByUser = false;
+      let rxBuffer = new Uint8Array(0);
+      const subs = new Set();
+      let pktIdCounter = 1;
+
+      function connectNext(idx) {
+        if (closedByUser) return;
+        currentIdx = idx % brokerUrls.length;
+        const url = brokerUrls[currentIdx];
+
+        // If global mqtt.js library is loaded, use it or native MQTT WebSocket seamlessly
+        try {
+          if (sock) {
+            try { sock.close(); } catch (_) {}
+          }
+          sock = new WebSocket(url, 'mqtt');
+          sock.binaryType = 'arraybuffer';
+        } catch (_) {
+          setTimeout(() => connectNext(currentIdx + 1), 1200);
+          return;
+        }
+
+        let handshakeTimer = setTimeout(() => {
+          try { sock.close(); } catch (_) {}
+        }, 5000);
+
+        sock.onopen = () => {
+          const cid = 'allin_' + myDeviceId + '_' + Math.random().toString(36).slice(2, 6);
+          sock.send(buildMqttConnectPacket(cid));
+        };
+
+        sock.onmessage = (ev) => {
+          const chunk = new Uint8Array(ev.data);
+          const merged = new Uint8Array(rxBuffer.length + chunk.length);
+          merged.set(rxBuffer, 0);
+          merged.set(chunk, rxBuffer.length);
+          rxBuffer = merged;
+
+          while (rxBuffer.length >= 2) {
+            const headerByte = rxBuffer[0];
+            const msgType = headerByte >> 4;
+            let multiplier = 1;
+            let remLen = 0;
+            let pos = 1;
+            let encodedByte = 0;
+            do {
+              if (pos >= rxBuffer.length) return; // Wait for more bytes
+              encodedByte = rxBuffer[pos++];
+              remLen += (encodedByte & 127) * multiplier;
+              multiplier *= 128;
+            } while ((encodedByte & 128) !== 0);
+
+            const totalPktLen = pos + remLen;
+            if (rxBuffer.length < totalPktLen) return; // Wait for full packet
+
+            const pktBody = rxBuffer.slice(pos, totalPktLen);
+            rxBuffer = rxBuffer.slice(totalPktLen);
+
+            if (msgType === 2) {
+              // CONNACK
+              clearTimeout(handshakeTimer);
+              updateRelayStatusBadges(true);
+              subs.forEach(t => {
+                if (sock && sock.readyState === WebSocket.OPEN) {
+                  sock.send(buildMqttSubscribePacket(t, pktIdCounter++));
+                }
+              });
+              clearInterval(pingTimer);
+              pingTimer = setInterval(() => {
+                if (sock && sock.readyState === WebSocket.OPEN) {
+                  sock.send(new Uint8Array([0xc0, 0x00])); // PINGREQ
+                }
+              }, 25000);
+              if (onConnected) onConnected();
+            } else if (msgType === 3) {
+              // PUBLISH
+              const qos = (headerByte >> 1) & 0x03;
+              if (pktBody.length < 2) continue;
+              const topicLen = (pktBody[0] << 8) | pktBody[1];
+              let payloadStart = 2 + topicLen;
+              if (qos > 0) payloadStart += 2;
+              if (pktBody.length >= payloadStart) {
+                const topicStr = new TextDecoder().decode(pktBody.slice(2, 2 + topicLen));
+                const payloadStr = new TextDecoder().decode(pktBody.slice(payloadStart));
+                if (onTopicMessage) onTopicMessage(topicStr, payloadStr);
+              }
+            }
+          }
+        };
+
+        sock.onerror = () => {
+          clearTimeout(handshakeTimer);
+        };
+
+        sock.onclose = () => {
+          clearTimeout(handshakeTimer);
+          clearInterval(pingTimer);
+          if (!closedByUser) {
+            updateRelayStatusBadges(false);
+            setTimeout(() => connectNext(currentIdx + 1), 1400);
+          }
+        };
+      }
+
+      connectNext(0);
+
+      return {
+        subscribe(topic) {
+          subs.add(topic);
+          if (sock && sock.readyState === WebSocket.OPEN) {
+            sock.send(buildMqttSubscribePacket(topic, pktIdCounter++));
+          }
+        },
+        publish(topic, objOrStr, retain = false) {
+          const str = typeof objOrStr === 'string' ? objOrStr : JSON.stringify(objOrStr);
+          if (sock && sock.readyState === WebSocket.OPEN) {
+            try {
+              sock.send(buildMqttPublishPacket(topic, str, retain));
+              return true;
+            } catch (_) {}
+          }
+          return false;
+        },
+        isOpen() {
+          return Boolean(sock && sock.readyState === WebSocket.OPEN);
+        },
+        close() {
+          closedByUser = true;
+          clearInterval(pingTimer);
+          try { if (sock) sock.close(); } catch (_) {}
+        }
+      };
+    }
+
     function saveAndBroadcastState(eventCue = null) {
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
       } catch (_) {}
-      if (netRole === 'host' && wsConnection && wsConnection.readyState === WebSocket.OPEN) {
-        wsConnection.send(JSON.stringify({
-          type: 'STATE_SYNC',
+      if (netRole === 'host') {
+        const packet = {
+          type: state.status === 'LOBBY' ? 'LOBBY_STATE' : 'GAME_STATE',
+          syncType: 'STATE_SYNC',
           room: state.roomCode,
           state,
-          eventCue
-        }));
+          eventCue,
+          ts: Date.now()
+        };
+        if (mqttClient && mqttClient.isOpen()) {
+          mqttClient.publish(getClientsTopic(state.roomCode), packet, true);
+        }
+        if (wsConnection && wsConnection.readyState === WebSocket.OPEN) {
+          wsConnection.send(JSON.stringify({
+            type: 'STATE_SYNC',
+            room: state.roomCode,
+            state,
+            eventCue
+          }));
+        }
       }
     }
 
@@ -2635,19 +2918,37 @@
     /* ==========================================================
        5. PRE-GAME WAITING LOBBY & QR CODE FLOW
        ========================================================== */
+    function regenerateRoomCode() {
+      roomCode = generateRandomRoomCode();
+      state.roomCode = roomCode;
+      localStorage.setItem(ROOM_CODE_KEY, roomCode);
+      Sound.chipThrow(1.1);
+      openHostLobby();
+    }
+
     async function openHostLobby() {
       netRole = 'host';
+      clearInterval(clientJoinRetryTimer);
       state.status = 'LOBBY';
+      if (!state.roomCode || state.roomCode === 'MAIN') {
+        roomCode = localStorage.getItem(ROOM_CODE_KEY) || generateRandomRoomCode();
+        state.roomCode = roomCode;
+        localStorage.setItem(ROOM_CODE_KEY, roomCode);
+      } else {
+        roomCode = state.roomCode.toUpperCase();
+      }
+
       showScreen('hostLobbyScreen');
       renderLobbySettingsAndRoster();
 
-      let joinUrl = `${location.origin}/?join=1&room=${state.roomCode}`;
+      const basePath = location.origin + location.pathname.replace(/\/index\.html$/i, '/');
+      let joinUrl = `${basePath}?join=1&room=${encodeURIComponent(state.roomCode)}`;
       try {
         const res = await fetch('/api/lan-info');
         const info = await res.json();
-        if (info && info.primaryIp && info.primaryIp !== '127.0.0.1') {
+        if (info && info.primaryIp && info.primaryIp !== '127.0.0.1' && location.hostname === 'localhost') {
           const portPart = location.port ? `:${location.port}` : `:${info.httpPort || 3000}`;
-          joinUrl = `${location.protocol}//${info.primaryIp}${portPart}/?join=1&room=${state.roomCode}`;
+          joinUrl = `${location.protocol}//${info.primaryIp}${portPart}/?join=1&room=${encodeURIComponent(state.roomCode)}`;
         }
       } catch (_) {}
 
@@ -2788,8 +3089,11 @@
     function openJoinLobby() {
       netRole = 'client';
       showScreen('joinLobbyScreen');
-      const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-      document.getElementById('clientHostUrlInput').value = `${proto}//${location.host}`;
+      const codeInput = document.getElementById('clientRoomCodeInput');
+      if (codeInput) {
+        codeInput.value = (roomCode || state.roomCode || 'POKR').toUpperCase();
+      }
+      ensureClientRelayReady((codeInput?.value || roomCode || 'POKR').trim().toUpperCase());
     }
 
     function submitClientJoinLobby() {
@@ -2800,19 +3104,35 @@
         nameInput.focus();
         return;
       }
-      const wsUrl = (document.getElementById('clientHostUrlInput').value || '').trim();
-      connectWebSocketAsClient(wsUrl, name);
+      const codeInput = document.getElementById('clientRoomCodeInput');
+      const targetRoom = ((codeInput ? codeInput.value : '') || roomCode || 'POKR').trim().toUpperCase();
+      if (!targetRoom) {
+        showToast('Please enter the 4-letter Room Code');
+        if (codeInput) codeInput.focus();
+        return;
+      }
+      roomCode = targetRoom;
+      state.roomCode = targetRoom;
+      connectWebSocketAsClient(targetRoom, name);
     }
 
     function sendClientRebuyRequest() {
+      const me = state.players.find(p => p.id === myDeviceId);
+      const reqPacket = {
+        type: 'REBUY_REQUEST',
+        room: state.roomCode,
+        playerId: myDeviceId,
+        name: me ? me.name : (pendingClientName || 'Spectator')
+      };
+      let sent = false;
+      if (mqttClient && mqttClient.isOpen()) {
+        sent = mqttClient.publish(getHostTopic(state.roomCode), reqPacket, false);
+      }
       if (wsConnection && wsConnection.readyState === WebSocket.OPEN) {
-        const me = state.players.find(p => p.id === myDeviceId);
-        wsConnection.send(JSON.stringify({
-          type: 'REBUY_REQUEST',
-          room: state.roomCode,
-          playerId: myDeviceId,
-          name: me ? me.name : 'Spectator'
-        }));
+        wsConnection.send(JSON.stringify(reqPacket));
+        sent = true;
+      }
+      if (sent) {
         Sound.chipThrow(1.1);
         showToast('Sent Rebuy request to Host!');
       } else {
@@ -2820,102 +3140,216 @@
       }
     }
 
-    function connectWebSocketAsHost() {
-      try {
-        const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const wsUrl = `${proto}//${location.host}`;
-        if (wsConnection && wsConnection.readyState === WebSocket.OPEN) {
-          wsConnection.send(JSON.stringify({ type: 'HOST_REGISTER', room: state.roomCode, state }));
-          return;
+    function handleIncomingHostMessage(msg) {
+      if (!msg || typeof msg !== 'object') return;
+      if ((msg.type === 'JOIN' || msg.type === 'JOIN_REQUEST' || msg.type === 'LOBBY_JOIN') && msg.name && msg.playerId) {
+        const existing = state.players.find(p => p.id === msg.playerId);
+        let isNewPlayer = false;
+        if (existing) {
+          existing.name = msg.name;
+        } else if (state.players.length < 10) {
+          isNewPlayer = true;
+          state.players.push({
+            id: msg.playerId,
+            name: msg.name,
+            mode: 'wifi',
+            status: 'active',
+            isSpectator: false,
+            stack: state.startingStack,
+            streetBet: 0,
+            totalCommitted: 0,
+            folded: state.status === 'PLAYING',
+            allIn: false,
+            acted: state.status === 'PLAYING',
+            lastAction: state.status === 'PLAYING' ? 'NEXT HAND' : ''
+          });
         }
-        wsConnection = new WebSocket(wsUrl);
-        wsConnection.onopen = () => {
-          wsConnection.send(JSON.stringify({ type: 'HOST_REGISTER', room: state.roomCode, state }));
-        };
-        wsConnection.onmessage = (ev) => {
+        if (isNewPlayer) {
+          Sound.chipThrow(1.2);
+          showToast(`${msg.name} joined Room ${state.roomCode}!`);
+        }
+        renderLobbySettingsAndRoster();
+        renderAll();
+        saveAndBroadcastState();
+      } else if (msg.type === 'PLAYER_ACTION' && netRole === 'host' && msg.payload) {
+        handleRemotePlayerAction(msg.playerId, msg.payload);
+      } else if (msg.type === 'REBUY_REQUEST' && netRole === 'host') {
+        Sound.chipThrow(1.25);
+        showToast(`👋 ${msg.name || 'Player'} requested a Rebuy!`);
+      } else if (msg.type === 'REQUEST_STATE' && netRole === 'host') {
+        saveAndBroadcastState();
+      }
+    }
+
+    function connectWebSocketAsHost() {
+      updateRelayStatusBadges(mqttClient ? mqttClient.isOpen() : false);
+
+      // 1. Cloud WebSocket MQTT Relay (Works on Vercel, GitHub Pages, Mobile Hotspots & Strict NATs)
+      if (mqttClient) {
+        mqttClient.close();
+      }
+      mqttClient = createLightweightMqttClient(
+        MQTT_BROKERS,
+        () => {
+          mqttClient.subscribe(getHostTopic(state.roomCode));
+          saveAndBroadcastState();
+        },
+        (_topic, payloadStr) => {
           try {
-            const msg = JSON.parse(ev.data);
-            if (msg.type === 'LOBBY_JOIN' && msg.name) {
-              const existing = state.players.find(p => p.id === msg.playerId);
-              if (existing) {
-                existing.name = msg.name;
-              } else if (state.players.length < 10) {
-                state.players.push({
-                  id: msg.playerId,
-                  name: msg.name,
-                  mode: 'wifi',
-                  status: 'active',
-                  isSpectator: false,
-                  stack: state.startingStack,
-                  streetBet: 0,
-                  totalCommitted: 0,
-                  folded: state.status === 'PLAYING',
-                  allIn: false,
-                  acted: state.status === 'PLAYING',
-                  lastAction: state.status === 'PLAYING' ? 'NEXT HAND' : ''
-                });
-              }
-              Sound.chipThrow(1.2);
-              showToast(`${msg.name} joined via Wi-Fi!`);
-              renderLobbySettingsAndRoster();
-              renderAll();
-              saveAndBroadcastState();
-            } else if (msg.type === 'PLAYER_ACTION' && netRole === 'host' && msg.payload) {
-              handleRemotePlayerAction(msg.playerId, msg.payload);
-            } else if (msg.type === 'REBUY_REQUEST' && netRole === 'host') {
-              Sound.chipThrow(1.25);
-              showToast(`👋 ${msg.name || 'Player'} requested a Rebuy!`);
-            } else if (msg.type === 'REQUEST_STATE' && netRole === 'host') {
-              saveAndBroadcastState();
-            }
+            const msg = JSON.parse(payloadStr);
+            handleIncomingHostMessage(msg);
           } catch (_) {}
-        };
+        }
+      );
+
+      // 2. Optional Local LAN WebSocket fallback if running node server.js locally
+      try {
+        if (location.hostname === 'localhost' || /^(\d+\.){3}\d+$/.test(location.hostname)) {
+          const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+          const wsUrl = `${proto}//${location.host}`;
+          if (wsConnection) {
+            try { wsConnection.close(); } catch (_) {}
+          }
+          wsConnection = new WebSocket(wsUrl);
+          wsConnection.onopen = () => {
+            updateRelayStatusBadges(true);
+            wsConnection.send(JSON.stringify({ type: 'HOST_REGISTER', room: state.roomCode, state }));
+          };
+          wsConnection.onmessage = (ev) => {
+            try {
+              handleIncomingHostMessage(JSON.parse(ev.data));
+            } catch (_) {}
+          };
+        }
       } catch (_) {}
     }
 
-    function connectWebSocketAsClient(wsUrl, playerName) {
-      try {
-        if (wsConnection) wsConnection.close();
-        wsConnection = new WebSocket(wsUrl);
-        wsConnection.onopen = () => {
-          wsConnection.send(JSON.stringify({
-            type: 'LOBBY_JOIN',
-            room: roomCode,
-            playerId: myDeviceId,
-            name: playerName
-          }));
-          document.getElementById('clientWaitingBox').style.display = 'block';
-          document.getElementById('clientJoinSubmitBtn').textContent = 'UPDATE NAME';
-          Sound.chipThrow(1.15);
-        };
-        wsConnection.onmessage = (ev) => {
-          try {
-            const msg = JSON.parse(ev.data);
-            if (msg.type === 'STATE_SYNC' && msg.state) {
-              state = msg.state;
-              if (state.status === 'PLAYING') {
-                showScreen(null);
-              } else if (state.status === 'CHAMPION') {
-                const champ = state.players.find(p => !p.isSpectator && p.stack > 0) || state.players[0];
-                showChampionCelebration(champ);
-              }
-              if (msg.eventCue === 'POT_GATHER') Sound.potGather();
-              else if (msg.eventCue === 'CHIP_THROW') Sound.chipThrow(1.05);
-              else if (msg.eventCue === 'CHECK') Sound.woodCheck();
-              else if (msg.eventCue === 'FOLD') Sound.foldSwoosh();
-              else if (msg.eventCue === 'ALL_IN') Sound.allInCascade();
-              else if (msg.eventCue === 'WINNER') Sound.winnerSweep();
-              else if (msg.eventCue === 'SPECTATOR_OUT') Sound.spectatorEliminated();
-              renderAll();
-            }
-          } catch (_) {}
-        };
-        wsConnection.onerror = () => {
-          showToast('Could not connect to Host');
-        };
-      } catch (_) {
-        showToast('Invalid Host address');
+    function handleIncomingClientStateMessage(msg) {
+      if (!msg || typeof msg !== 'object') return;
+      if ((msg.type === 'LOBBY_STATE' || msg.type === 'GAME_STATE' || msg.type === 'STATE_SYNC' || msg.syncType === 'STATE_SYNC') && msg.state) {
+        state = msg.state;
+        const amInRoster = state.players && state.players.some(p => p.id === myDeviceId);
+        if (amInRoster) {
+          clientHasJoinedRoster = true;
+          clearInterval(clientJoinRetryTimer);
+          const titleEl = document.getElementById('clientWaitingTitle');
+          if (titleEl) titleEl.textContent = `✓ You're in Room ${state.roomCode}!`;
+          const subEl = document.getElementById('clientWaitingSub');
+          if (subEl) subEl.textContent = `Seated at table (${state.players.length} players). Waiting for Host to start...`;
+        }
+
+        if (state.status === 'PLAYING') {
+          showScreen(null);
+        } else if (state.status === 'CHAMPION') {
+          const champ = state.players.find(p => !p.isSpectator && p.stack > 0) || state.players[0];
+          showChampionCelebration(champ);
+        }
+        if (msg.eventCue === 'POT_GATHER') Sound.potGather();
+        else if (msg.eventCue === 'CHIP_THROW') Sound.chipThrow(1.05);
+        else if (msg.eventCue === 'CHECK') Sound.woodCheck();
+        else if (msg.eventCue === 'FOLD') Sound.foldSwoosh();
+        else if (msg.eventCue === 'ALL_IN') Sound.allInCascade();
+        else if (msg.eventCue === 'WINNER') Sound.winnerSweep();
+        else if (msg.eventCue === 'SPECTATOR_OUT') Sound.spectatorEliminated();
+        renderAll();
       }
+    }
+
+    function ensureClientRelayReady(targetRoomCode) {
+      const cleanRoom = (targetRoomCode || roomCode || 'POKR').toUpperCase();
+      if (mqttClient && mqttClient.isOpen()) {
+        mqttClient.subscribe(getClientsTopic(cleanRoom));
+        updateRelayStatusBadges(true);
+        return;
+      }
+      if (mqttClient) {
+        mqttClient.close();
+      }
+      updateRelayStatusBadges(false);
+      mqttClient = createLightweightMqttClient(
+        MQTT_BROKERS,
+        () => {
+          mqttClient.subscribe(getClientsTopic(cleanRoom));
+          if (pendingClientName && !clientHasJoinedRoster) {
+            publishClientJoinPacket(cleanRoom, pendingClientName);
+          }
+        },
+        (_topic, payloadStr) => {
+          try {
+            const msg = JSON.parse(payloadStr);
+            handleIncomingClientStateMessage(msg);
+          } catch (_) {}
+        }
+      );
+    }
+
+    function publishClientJoinPacket(targetRoom, playerName) {
+      const joinPayload = {
+        type: 'JOIN',
+        room: targetRoom,
+        playerId: myDeviceId,
+        name: playerName
+      };
+      if (mqttClient && mqttClient.isOpen()) {
+        mqttClient.publish(getHostTopic(targetRoom), joinPayload, false);
+      }
+      if (wsConnection && wsConnection.readyState === WebSocket.OPEN) {
+        wsConnection.send(JSON.stringify({
+          type: 'LOBBY_JOIN',
+          room: targetRoom,
+          playerId: myDeviceId,
+          name: playerName
+        }));
+      }
+    }
+
+    function connectWebSocketAsClient(targetRoomCode, playerName) {
+      const cleanRoom = (targetRoomCode || 'POKR').trim().toUpperCase();
+      roomCode = cleanRoom;
+      state.roomCode = cleanRoom;
+      pendingClientName = playerName;
+      clientHasJoinedRoster = false;
+
+      document.getElementById('clientWaitingBox').style.display = 'block';
+      const titleEl = document.getElementById('clientWaitingTitle');
+      if (titleEl) titleEl.textContent = `Connecting to Room ${cleanRoom}...`;
+      document.getElementById('clientJoinSubmitBtn').textContent = 'UPDATE NAME / RETRY';
+      Sound.chipThrow(1.15);
+
+      ensureClientRelayReady(cleanRoom);
+      mqttClient.subscribe(getClientsTopic(cleanRoom));
+      publishClientJoinPacket(cleanRoom, playerName);
+
+      // Automatic Handshake & Heartbeat: retry every 1.5 seconds until Host includes myDeviceId in roster
+      clearInterval(clientJoinRetryTimer);
+      clientJoinRetryTimer = setInterval(() => {
+        if (clientHasJoinedRoster) {
+          clearInterval(clientJoinRetryTimer);
+          return;
+        }
+        publishClientJoinPacket(cleanRoom, playerName);
+      }, 1500);
+
+      // Optional local WebSocket fallback when running on same local server
+      try {
+        if (location.hostname === 'localhost' || /^(\d+\.){3}\d+$/.test(location.hostname)) {
+          const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+          const wsUrl = `${proto}//${location.host}`;
+          if (wsConnection) {
+            try { wsConnection.close(); } catch (_) {}
+          }
+          wsConnection = new WebSocket(wsUrl);
+          wsConnection.onopen = () => {
+            updateRelayStatusBadges(true);
+            publishClientJoinPacket(cleanRoom, playerName);
+          };
+          wsConnection.onmessage = (ev) => {
+            try {
+              handleIncomingClientStateMessage(JSON.parse(ev.data));
+            } catch (_) {}
+          };
+        }
+      } catch (_) {}
     }
 
     function handleRemotePlayerAction(playerId, payload) {
@@ -3657,15 +4091,27 @@
     }
 
     function sendClientMoveIfRemote(payload) {
-      if (netRole === 'client' && wsConnection && wsConnection.readyState === WebSocket.OPEN) {
-        wsConnection.send(JSON.stringify({
+      if (netRole === 'client') {
+        const actionPacket = {
           type: 'PLAYER_ACTION',
           room: state.roomCode,
           playerId: myDeviceId,
           payload
-        }));
-        stagedChips = [];
-        renderStagingPileAndDock();
+        };
+        let sent = false;
+        if (mqttClient && mqttClient.isOpen()) {
+          sent = mqttClient.publish(getHostTopic(state.roomCode), actionPacket, false);
+        }
+        if (wsConnection && wsConnection.readyState === WebSocket.OPEN) {
+          wsConnection.send(JSON.stringify(actionPacket));
+          sent = true;
+        }
+        if (sent) {
+          stagedChips = [];
+          renderStagingPileAndDock();
+          return true;
+        }
+        showToast('Reconnecting to Host relay...');
         return true;
       }
       return false;
