@@ -1634,7 +1634,7 @@
       </button>
 
       <div style="margin-top:6px; display:flex; justify-content:center;">
-        <span class="app-version-badge" data-version-badge>v1.4.0</span>
+        <span class="app-version-badge" data-version-badge>v1.5</span>
       </div>
     </div>
   </section>
@@ -1646,8 +1646,17 @@
     <div class="lobby-card">
       <div class="lobby-top-bar">
         <button class="lobby-back-btn" onclick="showScreen('homeScreen')">← Home</button>
-        <span class="lobby-title">Host Lobby <span class="app-version-badge" data-version-badge style="padding:1px 6px; font-size:0.6rem; margin-left:4px;">v1.4.0</span></span>
+        <span class="lobby-title">Host Lobby <span class="app-version-badge" data-version-badge style="padding:1px 6px; font-size:0.6rem; margin-left:4px;">v1.5</span></span>
         <span id="hostRelayStatusBadge" style="font-size:0.68rem; font-weight:800; padding:4px 8px; border-radius:999px; background:rgba(16,185,129,0.12); border:1px solid rgba(16,185,129,0.35); color:#A7F3D0; white-space:nowrap;">🟡 Connecting...</span>
+      </div>
+
+      <!-- Host Player Name Bar -->
+      <div style="background:var(--surface-2); border:1px solid var(--border-bright); border-radius:14px; padding:9px 12px; display:flex; align-items:center; justify-content:space-between; gap:10px;">
+        <div style="flex:1;">
+          <div class="cycle-pill-label" style="margin-bottom:2px;">👑 Your Name at the Table</div>
+          <input id="hostPlayerNameInput" type="text" maxlength="20" placeholder="Enter your name..." value="" oninput="updateHostOwnName(this.value)" style="font-size:1rem; font-weight:800; width:100%; color:var(--text-primary);" />
+        </div>
+        <span class="lobby-mode-tag host-tag">Host (You)</span>
       </div>
 
       <!-- Tap-to-Cycle Settings Pill Bar -->
@@ -1707,7 +1716,7 @@
     <div class="lobby-card">
       <div class="lobby-top-bar">
         <button class="lobby-back-btn" onclick="leaveRoomAsGuest()">← Leave</button>
-        <span class="lobby-title">Join Table <span class="app-version-badge" data-version-badge style="padding:1px 6px; font-size:0.6rem; margin-left:4px;">v1.4.0</span></span>
+        <span class="lobby-title">Join Table <span class="app-version-badge" data-version-badge style="padding:1px 6px; font-size:0.6rem; margin-left:4px;">v1.5</span></span>
         <span id="clientRelayStatusBadge" style="font-size:0.68rem; font-weight:800; padding:4px 8px; border-radius:999px; background:rgba(16,185,129,0.12); border:1px solid rgba(16,185,129,0.35); color:#A7F3D0; white-space:nowrap;">🟡 Connecting...</span>
       </div>
 
@@ -2642,7 +2651,7 @@
     /* ==========================================================
        4. LOBBY, NETWORKING & POKER STATE MACHINE
        ========================================================== */
-    const APP_VERSION = 'v1.4.0';
+    const APP_VERSION = 'v1.5';
     const STORAGE_KEY = 'felt_poker_state_v3';
     const DEVICE_ID_KEY = 'felt_device_id_v3';
     const STREETS = ['Pre-Flop', 'Flop', 'Turn', 'River', 'Showdown'];
@@ -2664,6 +2673,7 @@
 
     const ROOM_CODE_KEY = 'felt_room_code_v3';
     const CLIENT_NAME_KEY = 'felt_client_name_v3';
+    const HOST_NAME_KEY = 'felt_host_name_v3';
     const CLIENT_ROLE_KEY = 'felt_last_role_v3';
 
     function generateRandomRoomCode() {
@@ -2686,7 +2696,16 @@
     let hostPresenceWatchdogTimer = null;
     let clientHasJoinedRoster = false;
     let pendingClientName = localStorage.getItem(CLIENT_NAME_KEY) || '';
+    let savedHostName = (localStorage.getItem(HOST_NAME_KEY) || '').replace(/\s*\(you\)\s*/ig, '').trim();
     let lastNotifiedTurnKey = '';
+
+    function sanitizeHostDisplayName(rawName) {
+      const cleaned = String(rawName || '').replace(/\s*\(you\)\s*/ig, '').trim();
+      if (!cleaned || cleaned.toLowerCase() === 'host') {
+        return savedHostName || 'Host';
+      }
+      return cleaned;
+    }
 
     // Host tracks lastSeen[playerId] = timestamp (ms) for 3s heartbeat / 8s timeout detection
     const lastSeen = {};
@@ -2717,7 +2736,7 @@
       minRaiseDelta: 10,
       pots: [{ amount: 0, eligibleIds: [] }],
       players: [
-        { id: 'host_1', name: 'Host (You)', mode: 'host', isLocal: true, isConnected: true, status: 'active', isSpectator: false, stack: 1000, streetBet: 0, totalCommitted: 0, folded: false, allIn: false, acted: false, lastAction: '' },
+        { id: 'host_1', name: savedHostName || 'Host', mode: 'host', isLocal: true, isConnected: true, status: 'active', isSpectator: false, stack: 1000, streetBet: 0, totalCommitted: 0, folded: false, allIn: false, acted: false, lastAction: '' },
         { id: 'local_2', name: 'Alex', mode: 'local', isLocal: true, isConnected: true, status: 'active', isSpectator: false, stack: 1000, streetBet: 0, totalCommitted: 0, folded: false, allIn: false, acted: false, lastAction: '' }
       ]
     };
@@ -3302,6 +3321,15 @@
     }
 
     function saveAndBroadcastState(eventCue = null) {
+      // Ensure Host seat never carries literal "(You)" in shared player state
+      if (Array.isArray(state.players)) {
+        state.players.forEach(p => {
+          if (p.mode === 'host' && /\(you\)/i.test(p.name || '')) {
+            p.name = sanitizeHostDisplayName(p.name);
+          }
+        });
+      }
+
       const playing = isPlayingStatus(state.status);
       const champion = isChampionStatus(state);
       state.status = playing ? 'playing' : champion ? 'champion' : 'lobby';
@@ -3449,6 +3477,15 @@
       const customInput = document.getElementById('hostCustomRoomInput');
       if (customInput) customInput.value = state.roomCode;
 
+      const hostSeat = state.players.find(p => p.mode === 'host') || state.players[0];
+      if (hostSeat) {
+        hostSeat.name = sanitizeHostDisplayName(hostSeat.name);
+      }
+      const hostNameEl = document.getElementById('hostPlayerNameInput');
+      if (hostNameEl) {
+        hostNameEl.value = (hostSeat && hostSeat.name && hostSeat.name !== 'Host') ? hostSeat.name : savedHostName;
+      }
+
       showScreen('hostLobbyScreen');
       renderLobbySettingsAndRoster();
 
@@ -3498,6 +3535,13 @@
       document.getElementById('lobbyBlindsPillVal').textContent = `${formatMoney(state.smallBlind)} / ${formatMoney(state.bigBlind)}`;
       document.getElementById('lobbyPlayerCount').textContent = String(state.players.length);
 
+      const hostSeat = state.players.find(p => p.mode === 'host') || state.players[0];
+      const hostNameInput = document.getElementById('hostPlayerNameInput');
+      if (hostNameInput && document.activeElement !== hostNameInput && hostSeat) {
+        const cleanVal = sanitizeHostDisplayName(hostSeat.name);
+        hostNameInput.value = cleanVal === 'Host' && !savedHostName ? '' : cleanVal;
+      }
+
       const list = document.getElementById('lobbyPlayersList');
       list.innerHTML = '';
 
@@ -3509,14 +3553,16 @@
         const isOnline = isWifi ? p.isConnected !== false : true;
         const badgeClass = p.mode === 'host' ? 'host-tag' : isWifi ? 'wifi-tag' : 'local-tag';
         const badgeText = p.mode === 'host'
-          ? 'Host'
+          ? '👑 Host'
           : isWifi
             ? (isOnline ? '🟢 Phone' : '⚠️ Offline')
             : 'On My Phone';
 
+        const displayVal = p.mode === 'host' ? sanitizeHostDisplayName(p.name) : p.name;
+
         row.innerHTML = `
           <span class="lobby-seat-num">#${idx + 1}</span>
-          <input type="text" class="lobby-player-input" value="${escapeHtml(p.name)}" placeholder="Player ${idx + 1}" oninput="updateLobbyPlayerName(${idx}, this.value)" />
+          <input type="text" class="lobby-player-input" data-seat-idx="${idx}" value="${escapeHtml(displayVal)}" placeholder="${p.mode === 'host' ? 'Your Host Name' : 'Player ' + (idx + 1)}" oninput="updateLobbyPlayerName(${idx}, this.value)" />
           <span class="lobby-mode-tag ${badgeClass}">${badgeText}</span>
           ${idx > 0 ? `<button class="lobby-remove-btn" onclick="removeLobbyPlayer(${idx})">✕</button>` : ''}
         `;
@@ -3527,9 +3573,42 @@
       startBtn.disabled = state.players.length < 2;
     }
 
+    function updateHostOwnName(val) {
+      const cleaned = String(val || '').replace(/\s*\(you\)\s*/ig, '');
+      const trimmed = cleaned.trim();
+      savedHostName = trimmed;
+      try {
+        localStorage.setItem(HOST_NAME_KEY, trimmed);
+      } catch (_) {}
+      const hostSeat = state.players.find(p => p.mode === 'host') || state.players[0];
+      if (hostSeat) {
+        hostSeat.name = trimmed || 'Host';
+      }
+      const seat0Input = document.querySelector('#lobbyPlayersList input[data-seat-idx="0"]');
+      if (seat0Input && document.activeElement !== seat0Input) {
+        seat0Input.value = trimmed || 'Host';
+      }
+      saveAndBroadcastState();
+    }
+
     function updateLobbyPlayerName(idx, val) {
       if (!state.players[idx]) return;
-      state.players[idx].name = val;
+      const p = state.players[idx];
+      if (p.mode === 'host' || idx === 0) {
+        const cleaned = String(val || '').replace(/\s*\(you\)\s*/ig, '');
+        const trimmed = cleaned.trim();
+        savedHostName = trimmed;
+        try {
+          localStorage.setItem(HOST_NAME_KEY, trimmed);
+        } catch (_) {}
+        p.name = trimmed || 'Host';
+        const topHostInput = document.getElementById('hostPlayerNameInput');
+        if (topHostInput && document.activeElement !== topHostInput) {
+          topHostInput.value = trimmed;
+        }
+      } else {
+        p.name = val;
+      }
       saveAndBroadcastState();
     }
 
@@ -3574,16 +3653,29 @@
         showToast('Add at least 2 players to start');
         return;
       }
-      state.players = state.players.map((p, idx) => ({
-        ...p,
-        name: (p.name || '').trim() || `Player ${idx + 1}`,
-        stack: state.startingStack,
-        isSpectator: false,
-        status: 'active',
-        isLocal: p.mode !== 'wifi' || p.takenOverByHost === true,
-        isRemote: p.mode === 'wifi' && !p.takenOverByHost,
-        isConnected: p.isConnected !== undefined ? p.isConnected : true
-      }));
+      const topHostNameInput = document.getElementById('hostPlayerNameInput');
+      const typedHostName = topHostNameInput ? topHostNameInput.value.replace(/\s*\(you\)\s*/ig, '').trim() : '';
+      if (typedHostName) {
+        savedHostName = typedHostName;
+        try { localStorage.setItem(HOST_NAME_KEY, typedHostName); } catch (_) {}
+      }
+
+      state.players = state.players.map((p, idx) => {
+        const isHostSeat = p.mode === 'host' || idx === 0;
+        const resolvedName = isHostSeat
+          ? (typedHostName || sanitizeHostDisplayName(p.name) || 'Host')
+          : ((p.name || '').trim() || `Player ${idx + 1}`);
+        return {
+          ...p,
+          name: resolvedName,
+          stack: state.startingStack,
+          isSpectator: false,
+          status: 'active',
+          isLocal: p.mode !== 'wifi' || p.takenOverByHost === true,
+          isRemote: p.mode === 'wifi' && !p.takenOverByHost,
+          isConnected: p.isConnected !== undefined ? p.isConnected : true
+        };
+      });
       state.status = 'playing';
       state.phase = 'game';
       state.screen = 'game';
@@ -5812,6 +5904,11 @@
           const parsed = JSON.parse(raw);
           if (parsed && Array.isArray(parsed.players) && parsed.players.length >= 2) {
             state = parsed;
+            state.players.forEach(p => {
+              if (p.mode === 'host') {
+                p.name = sanitizeHostDisplayName(p.name);
+              }
+            });
             if (state.roomCode) roomCode = state.roomCode;
             const lastRole = localStorage.getItem(CLIENT_ROLE_KEY);
             const activeNow = computeIsGameActive(state, state.screen || state.phase);
@@ -5834,18 +5931,18 @@
       renderAll();
     });
 
-    // Purge any legacy cached builds and register Network-First Service Worker (poker-chips-v1.4.0)
+    // Purge any legacy cached builds and register Network-First Service Worker (poker-chips-v1.5)
     if ('caches' in window) {
       caches.keys().then(keys => {
         keys.forEach(k => {
-          if (k !== 'poker-chips-v1.4.0') caches.delete(k);
+          if (k !== 'poker-chips-v1.5') caches.delete(k);
         });
       }).catch(() => {});
     }
 
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js?v=1.4.0', { updateViaCache: 'none' })
+        navigator.serviceWorker.register('./sw.js?v=1.5', { updateViaCache: 'none' })
           .then(reg => {
             try { reg.update(); } catch (_) {}
           })
