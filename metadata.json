@@ -1,0 +1,6 @@
+{
+  "name": "All In",
+  "description": "100% offline digital poker chips, betting streets, automated side-pot calculator, Web Audio casino sound engine, and local Wi-Fi/WebRTC multiplayer companion for real-life card games.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

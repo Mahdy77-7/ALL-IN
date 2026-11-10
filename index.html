@@ -1,0 +1,4344 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>All In — Minimalist Offline Poker Chips</title>
+  <meta name="description" content="Zero-noise offline poker chips companion app with 60fps tactile 3D chip physics, instant QR lobby, bust-out rebuy/spectator mode, and casino-grade Texas Hold'em pot & side-pot logic." />
+  <meta property="og:title" content="All In — Minimalist Offline Poker Chips" />
+  <meta property="og:description" content="Zero-noise offline poker chips companion app with 60fps tactile 3D chip physics, instant QR lobby, bust-out rebuy/spectator mode, and casino-grade Texas Hold'em pot & side-pot logic." />
+  <meta property="og:type" content="website" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="theme-color" content="#0B1311" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <link rel="manifest" href="./manifest.json" />
+  <style>
+    :root {
+      --bg-felt: #0B1311;
+      --bg-felt-inner: #101D19;
+      --surface-1: #13211D;
+      --surface-2: #1A2C27;
+      --surface-3: #233B34;
+      --border-subtle: rgba(255, 255, 255, 0.08);
+      --border-bright: rgba(255, 255, 255, 0.16);
+      --text-primary: #F4F7F6;
+      --text-secondary: #92A8A0;
+      --text-muted: #587068;
+      --gold: #F5B841;
+      --gold-soft: rgba(245, 184, 65, 0.16);
+      --emerald: #10B981;
+      --danger: #E11D48;
+      --danger-muted: #3A1F26;
+      --danger-text: #FDA4AF;
+      --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", "Segoe UI", Roboto, sans-serif;
+      --font-mono: "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100dvh;
+      overflow: hidden;
+      background-color: var(--bg-felt);
+      color: var(--text-primary);
+      font-family: var(--font-sans);
+      -webkit-font-smoothing: antialiased;
+      perspective: 900px;
+    }
+
+    input, button {
+      font-family: inherit;
+      outline: none;
+      border: none;
+      background: none;
+      color: inherit;
+    }
+
+    input[type="text"], input[type="number"] {
+      user-select: text;
+      -webkit-user-select: text;
+    }
+
+    /* Screen Shake for All-In */
+    @keyframes screenShake {
+      0%, 100% { transform: translate3d(0, 0, 0); }
+      15% { transform: translate3d(-6px, 3px, 0); }
+      30% { transform: translate3d(6px, -4px, 0); }
+      45% { transform: translate3d(-4px, -2px, 0); }
+      60% { transform: translate3d(4px, 3px, 0); }
+      75% { transform: translate3d(-2px, 1px, 0); }
+    }
+
+    body.shake {
+      animation: screenShake 0.44s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+    }
+
+    /* ==========================================================
+       PRE-GAME & CHAMPION SCREENS
+       ========================================================== */
+    .screen-overlay {
+      position: fixed;
+      inset: 0;
+      background: radial-gradient(circle at 50% 25%, #13231E 0%, #0B1311 75%);
+      z-index: 90;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: max(20px, env(safe-area-inset-top)) 20px max(24px, env(safe-area-inset-bottom));
+    }
+
+    .screen-overlay.active {
+      display: flex;
+    }
+
+    .home-container {
+      width: 100%;
+      max-width: 400px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 28px;
+      text-align: center;
+    }
+
+    .brand-mark {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .brand-chip-logo {
+      width: 64px;
+      height: 64px;
+      border-radius: 50%;
+      background: conic-gradient(
+        var(--gold) 0deg 30deg, #162621 30deg 60deg,
+        var(--gold) 60deg 90deg, #162621 90deg 120deg,
+        var(--gold) 120deg 150deg, #162621 150deg 180deg,
+        var(--gold) 180deg 210deg, #162621 210deg 240deg,
+        var(--gold) 240deg 270deg, #162621 270deg 300deg,
+        var(--gold) 300deg 330deg, #162621 330deg 360deg
+      );
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6), 0 0 24px rgba(245, 184, 65, 0.2);
+    }
+
+    .brand-chip-inner {
+      width: 46px;
+      height: 46px;
+      border-radius: 50%;
+      background: var(--bg-felt);
+      border: 2px solid var(--gold);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--font-mono);
+      font-weight: 900;
+      font-size: 1.1rem;
+      color: var(--gold);
+    }
+
+    .brand-title {
+      font-size: 2rem;
+      font-weight: 900;
+      letter-spacing: -0.04em;
+    }
+
+    .brand-sub {
+      font-size: 0.88rem;
+      color: var(--text-secondary);
+      max-width: 280px;
+      line-height: 1.4;
+    }
+
+    /* 2 Big Home Buttons */
+    .home-btn-stack {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .big-home-btn {
+      width: 100%;
+      height: 68px;
+      border-radius: 20px;
+      font-size: 1.15rem;
+      font-weight: 900;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      cursor: pointer;
+      transition: transform 0.12s ease, box-shadow 0.15s ease;
+    }
+
+    .big-home-btn:active {
+      transform: scale(0.97);
+    }
+
+    .big-home-btn.host {
+      background: var(--gold);
+      color: #1A1102;
+      box-shadow: 0 10px 28px rgba(245, 184, 65, 0.25);
+    }
+
+    .big-home-btn.join {
+      background: var(--surface-2);
+      color: var(--text-primary);
+      border: 1.5px solid var(--border-bright);
+    }
+
+    .resume-link-btn {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: var(--text-secondary);
+      padding: 8px 16px;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.04);
+      cursor: pointer;
+      display: none;
+    }
+
+    /* Host Waiting Lobby & Client Join Lobby */
+    .lobby-card {
+      width: 100%;
+      max-width: 480px;
+      max-height: 92dvh;
+      overflow-y: auto;
+      background: var(--surface-1);
+      border: 1px solid var(--border-bright);
+      border-radius: 24px;
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.65);
+    }
+
+    .lobby-top-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .lobby-back-btn {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: var(--text-secondary);
+      padding: 6px 10px;
+      border-radius: 10px;
+      background: var(--surface-2);
+      cursor: pointer;
+    }
+
+    .lobby-title {
+      font-size: 1.05rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+
+    /* Settings Pill Bar (Tap-to-cycle Starting Stack & Blinds) */
+    .settings-pill-bar {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .cycle-pill {
+      padding: 10px 12px;
+      border-radius: 14px;
+      background: var(--surface-2);
+      border: 1px solid var(--border-bright);
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 2px;
+      cursor: pointer;
+      transition: transform 0.1s ease, border-color 0.15s ease;
+    }
+
+    .cycle-pill:active {
+      transform: scale(0.97);
+      border-color: var(--gold);
+    }
+
+    .cycle-pill-label {
+      font-size: 0.68rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-secondary);
+    }
+
+    .cycle-pill-val {
+      font-family: var(--font-mono);
+      font-size: 1rem;
+      font-weight: 800;
+      color: var(--gold);
+    }
+
+    /* Built-in Offline QR Code Box */
+    .qr-banner {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      background: var(--surface-2);
+      border: 1px solid var(--border-subtle);
+      border-radius: 16px;
+      padding: 12px;
+    }
+
+    .qr-svg-wrap {
+      width: 112px;
+      height: 112px;
+      background: #FFFFFF;
+      padding: 6px;
+      border-radius: 12px;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .qr-svg-wrap svg {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    .qr-info {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      min-width: 0;
+    }
+
+    .qr-room-tag {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      font-weight: 800;
+      color: var(--emerald);
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    .qr-headline {
+      font-size: 0.9rem;
+      font-weight: 800;
+      color: var(--text-primary);
+    }
+
+    .qr-url-text {
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      color: var(--text-secondary);
+      word-break: break-all;
+      line-height: 1.3;
+    }
+
+    /* Live Player List in Host Lobby */
+    .lobby-roster-section {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .lobby-section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 0.74rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: var(--text-secondary);
+    }
+
+    .lobby-players-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      max-height: 195px;
+      overflow-y: auto;
+    }
+
+    .lobby-player-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border-radius: 12px;
+      background: var(--surface-2);
+      border: 1px solid var(--border-subtle);
+    }
+
+    .lobby-seat-num {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      font-weight: 800;
+      color: var(--gold);
+      width: 22px;
+    }
+
+    .lobby-player-input {
+      flex: 1;
+      font-size: 0.92rem;
+      font-weight: 700;
+      color: var(--text-primary);
+      min-width: 0;
+    }
+
+    .lobby-mode-tag {
+      font-size: 0.68rem;
+      font-weight: 800;
+      padding: 3px 8px;
+      border-radius: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .lobby-mode-tag.host-tag {
+      background: var(--gold-soft);
+      color: var(--gold);
+    }
+
+    .lobby-mode-tag.wifi-tag {
+      background: rgba(16, 185, 129, 0.16);
+      color: #34D399;
+    }
+
+    .lobby-mode-tag.local-tag {
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--text-secondary);
+    }
+
+    .lobby-remove-btn {
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      padding: 2px 6px;
+      cursor: pointer;
+    }
+
+    .add-local-player-btn {
+      width: 100%;
+      height: 42px;
+      border-radius: 12px;
+      background: var(--surface-2);
+      border: 1px dashed var(--border-bright);
+      color: var(--text-primary);
+      font-size: 0.84rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+
+    .start-game-night-btn {
+      width: 100%;
+      height: 54px;
+      border-radius: 16px;
+      background: var(--emerald);
+      color: #032218;
+      font-size: 1rem;
+      font-weight: 900;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      cursor: pointer;
+      box-shadow: 0 8px 24px rgba(16, 185, 129, 0.3);
+    }
+
+    .start-game-night-btn:disabled {
+      opacity: 0.4;
+      pointer-events: none;
+    }
+
+    /* ==========================================================
+       MAIN GAME SCREEN: 3-ZONE HYPER-FOCUSED CASINO TABLE
+       ========================================================== */
+    .app-viewport {
+      position: relative;
+      width: 100%;
+      height: 100dvh;
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      padding: max(10px, env(safe-area-inset-top)) 14px max(12px, env(safe-area-inset-bottom));
+      max-width: 680px;
+      margin: 0 auto;
+    }
+
+    /* 1. TOP ZONE: ACTIVE POT & STREET */
+    .top-zone {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 4px 0;
+      z-index: 10;
+    }
+
+    .pot-label-row {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+    }
+
+    .pot-prefix {
+      font-size: 0.88rem;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+    }
+
+    .pot-amount {
+      font-family: var(--font-mono);
+      font-size: clamp(2rem, 6vw, 2.75rem);
+      font-weight: 900;
+      color: var(--text-primary);
+      line-height: 1.05;
+      font-variant-numeric: tabular-nums;
+      will-change: transform;
+      transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1), color 0.2s ease;
+    }
+
+    .pot-amount.bump {
+      transform: scale(1.12);
+      color: var(--gold);
+    }
+
+    .street-meta {
+      margin-top: 2px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: var(--text-secondary);
+    }
+
+    .street-name {
+      color: var(--gold);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .street-dot {
+      width: 4px;
+      height: 4px;
+      border-radius: 50%;
+      background: var(--text-muted);
+    }
+
+    .side-pots-bar {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 6px;
+      margin-top: 4px;
+    }
+
+    .side-pot-tag {
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 6px;
+      background: var(--surface-1);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-secondary);
+    }
+
+    /* Top-Right Host Crown/Gear Icon */
+    .host-drawer-btn {
+      position: absolute;
+      top: 4px;
+      right: 0;
+      width: 40px;
+      height: 40px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-secondary);
+      background: var(--surface-1);
+      border: 1px solid var(--border-subtle);
+      cursor: pointer;
+    }
+
+    .host-drawer-btn:active {
+      transform: scale(0.93);
+      border-color: var(--gold);
+      color: var(--gold);
+    }
+
+    /* Top-Left Lobby / Room Code Pill */
+    .room-pill-btn {
+      position: absolute;
+      top: 8px;
+      left: 0;
+      padding: 5px 9px;
+      border-radius: 9px;
+      background: var(--surface-1);
+      border: 1px solid var(--border-subtle);
+      font-family: var(--font-mono);
+      font-size: 0.68rem;
+      font-weight: 700;
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      cursor: pointer;
+    }
+
+    .live-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--emerald);
+    }
+
+    /* 2. MIDDLE ZONE: THE TABLE RING & CENTER POT STACK + STAGING PILE */
+    .middle-zone {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      min-height: 220px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .table-ring-track {
+      position: relative;
+      width: 78%;
+      height: 70%;
+      max-width: 440px;
+      max-height: 360px;
+      border-radius: 999px;
+      background: radial-gradient(ellipse at center, var(--bg-felt-inner) 0%, var(--bg-felt) 78%);
+      border: 1.5px solid rgba(255, 255, 255, 0.06);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+    }
+
+    /* Center Main Pot Visual 3D Stack & Board Pips */
+    .center-pot-visual {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      pointer-events: none;
+    }
+
+    .center-street-dots {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .board-pip {
+      width: 14px;
+      height: 20px;
+      border-radius: 3px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1), background 0.25s ease, border-color 0.25s ease;
+    }
+
+    .board-pip.dealt {
+      background: rgba(245, 184, 65, 0.18);
+      border-color: var(--gold);
+      transform: translate3d(0, -2px, 0);
+    }
+
+    /* Center Pot 3D Chip Stack Target */
+    .center-pot-stack-anchor {
+      position: relative;
+      width: 42px;
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .center-pot-disc {
+      position: absolute;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      box-shadow: 0 3px 6px rgba(0, 0, 0, 0.65);
+      will-change: transform;
+    }
+
+    /* Interactive 3D Stacked Staging Pile in Front of Active Player */
+    .staging-pile-zone {
+      position: relative;
+      min-height: 68px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 8;
+      cursor: pointer;
+    }
+
+    .staging-chips-stack {
+      position: relative;
+      width: 56px;
+      height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      will-change: transform;
+    }
+
+    @keyframes stackMicroSettle {
+      0% { transform: translate3d(0, 0, 0) scale(1); }
+      40% { transform: translate3d(0, 2px, 0) scale(1.04, 0.96); }
+      75% { transform: translate3d(0, -1px, 0) scale(0.99, 1.01); }
+      100% { transform: translate3d(0, 0, 0) scale(1); }
+    }
+
+    .staging-chips-stack.micro-bounce {
+      animation: stackMicroSettle 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    .staged-chip-disc {
+      position: absolute;
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      box-shadow: 0 3px 5px rgba(0, 0, 0, 0.72), inset 0 1px 2px rgba(255, 255, 255, 0.35);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      will-change: transform;
+      transition: transform 0.16s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    .staged-chip-disc .chip-inlay {
+      width: 28px;
+      height: 28px;
+      font-size: 0.6rem;
+    }
+
+    .staging-pile-label {
+      margin-top: 6px;
+      font-family: var(--font-mono);
+      font-size: 0.74rem;
+      font-weight: 800;
+      padding: 2px 9px;
+      border-radius: 999px;
+      background: rgba(245, 184, 65, 0.16);
+      border: 1px solid rgba(245, 184, 65, 0.45);
+      color: var(--gold);
+    }
+
+    .staging-empty-hint {
+      margin-top: 6px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      letter-spacing: 0.03em;
+    }
+
+    /* Seats Layer */
+    .seats-layer {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+    }
+
+    @keyframes activeTurnPulse {
+      0%, 100% {
+        box-shadow: 0 0 0 2px rgba(245, 184, 65, 0.92), 0 0 18px rgba(245, 184, 65, 0.35);
+      }
+      50% {
+        box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.95), 0 0 26px rgba(245, 184, 65, 0.65);
+      }
+    }
+
+    .seat-badge {
+      position: absolute;
+      transform: translate3d(-50%, -50%, 0);
+      min-width: 102px;
+      max-width: 132px;
+      padding: 7px 12px;
+      border-radius: 999px;
+      background: var(--surface-1);
+      border: 1.5px solid var(--border-subtle);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 1px;
+      pointer-events: auto;
+      cursor: pointer;
+      will-change: transform, opacity;
+      transition: opacity 0.2s ease, transform 0.22s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.2s ease;
+    }
+
+    .seat-badge.inactive-dim {
+      opacity: 0.56;
+    }
+
+    .seat-badge.active-turn {
+      opacity: 1;
+      background: var(--surface-2);
+      border-color: var(--gold);
+      transform: translate3d(-50%, -50%, 0) scale(1.06);
+      animation: activeTurnPulse 2s infinite ease-in-out;
+      z-index: 6;
+    }
+
+    .seat-badge.winner-glow {
+      opacity: 1 !important;
+      border-color: var(--emerald) !important;
+      transform: translate3d(-50%, -50%, 0) scale(1.1) !important;
+      box-shadow: 0 0 0 3px var(--emerald), 0 0 28px rgba(16, 185, 129, 0.6) !important;
+      z-index: 9;
+    }
+
+    .seat-badge.folded {
+      opacity: 0.26;
+      filter: grayscale(0.85);
+    }
+
+    /* Spectator Seat Visuals: Dimmed (0.45) + Grayscale + Crisp Spectator Badge */
+    .seat-badge.spectator {
+      opacity: 0.45 !important;
+      filter: grayscale(1) !important;
+      border-style: dashed;
+      border-color: rgba(255, 255, 255, 0.14);
+    }
+
+    .seat-name {
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: var(--text-primary);
+      max-width: 104px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .seat-stack {
+      font-family: var(--font-mono);
+      font-size: 0.88rem;
+      font-weight: 800;
+      color: var(--emerald);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .seat-badge.active-turn .seat-stack {
+      color: #FDE68A;
+    }
+
+    .seat-spectator-pill {
+      margin-top: 2px;
+      font-family: var(--font-mono);
+      font-size: 0.66rem;
+      font-weight: 900;
+      padding: 2px 8px;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--text-secondary);
+      letter-spacing: 0.04em;
+      white-space: nowrap;
+    }
+
+    .seat-bet-tag {
+      margin-top: 1px;
+      font-family: var(--font-mono);
+      font-size: 0.68rem;
+      font-weight: 800;
+      padding: 1px 7px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--text-secondary);
+      white-space: nowrap;
+    }
+
+    .seat-bet-tag.has-bet {
+      background: var(--gold-soft);
+      color: var(--gold);
+    }
+
+    .seat-bet-tag.action-check {
+      background: rgba(16, 185, 129, 0.15);
+      color: #34D399;
+    }
+
+    .seat-bet-tag.action-allin {
+      background: rgba(225, 29, 72, 0.24);
+      color: #FDA4AF;
+    }
+
+    .dealer-token {
+      position: absolute;
+      top: -6px;
+      right: -6px;
+      width: 21px;
+      height: 21px;
+      border-radius: 50%;
+      background: #FFFFFF;
+      color: #0B1311;
+      border: 2px solid var(--gold);
+      font-size: 0.66rem;
+      font-weight: 900;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+    }
+
+    .blind-pip {
+      position: absolute;
+      top: -6px;
+      left: -4px;
+      padding: 1px 5px;
+      border-radius: 999px;
+      font-size: 0.58rem;
+      font-weight: 800;
+      background: var(--surface-3);
+      color: var(--text-secondary);
+      border: 1px solid var(--border-bright);
+    }
+
+    /* ==========================================================
+       3. BOTTOM ZONE: QUICK-FILL PILLS, 3D CHIP RACK & ACTION BAR
+       ========================================================== */
+    .bottom-zone {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      z-index: 20;
+      transition: opacity 0.2s ease, filter 0.2s ease;
+    }
+
+    .bottom-zone.dock-disabled {
+      opacity: 0.32;
+      pointer-events: none;
+      filter: grayscale(0.5);
+    }
+
+    /* Connected Phone Spectator Banner */
+    .spectator-client-banner {
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 14px 16px;
+      border-radius: 18px;
+      background: var(--surface-1);
+      border: 1.5px dashed var(--border-bright);
+      color: var(--text-secondary);
+      z-index: 25;
+    }
+
+    .spectator-client-banner.visible {
+      display: flex;
+    }
+
+    .spectator-banner-text {
+      font-size: 0.86rem;
+      font-weight: 800;
+      color: var(--text-primary);
+    }
+
+    .request-rebuy-btn {
+      padding: 9px 14px;
+      border-radius: 12px;
+      background: var(--gold);
+      color: #1A1102;
+      font-size: 0.78rem;
+      font-weight: 900;
+      white-space: nowrap;
+      cursor: pointer;
+    }
+
+    /* Subtle Quick-Fill Buttons above Chip Rack */
+    .quick-fill-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+
+    .quick-fill-pill {
+      padding: 5px 11px;
+      border-radius: 8px;
+      background: var(--surface-1);
+      border: 1px solid var(--border-subtle);
+      font-size: 0.72rem;
+      font-weight: 800;
+      letter-spacing: 0.03em;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: transform 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+    }
+
+    .quick-fill-pill:active {
+      transform: scale(0.95);
+      border-color: var(--gold);
+      color: var(--gold);
+    }
+
+    /* 3D Tactile Casino Chip Rack (Arc of ribbed chips) */
+    .chip-rack-arc {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 4px 2px 6px;
+      min-height: 62px;
+    }
+
+    .casino-chip {
+      position: relative;
+      width: 52px;
+      height: 52px;
+      border-radius: 50%;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 6px 14px rgba(0, 0, 0, 0.55), inset 0 2px 3px rgba(255, 255, 255, 0.35);
+      will-change: transform;
+      transition: transform 0.14s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.15s ease;
+      touch-action: none;
+    }
+
+    .casino-chip:nth-child(1), .casino-chip:nth-last-child(1) { transform: translate3d(0, 4px, 0); }
+    .casino-chip:nth-child(2), .casino-chip:nth-last-child(2) { transform: translate3d(0, 1px, 0); }
+
+    .casino-chip:active {
+      transform: translate3d(0, -6px, 0) scale(0.94) !important;
+    }
+
+    /* Recessed Center Inlay */
+    .chip-inlay {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: rgba(11, 19, 17, 0.86);
+      border: 1.5px solid rgba(255, 255, 255, 0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      font-weight: 900;
+      letter-spacing: -0.03em;
+      color: #FFFFFF;
+      box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.6);
+      pointer-events: none;
+    }
+
+    .denom-1 {
+      background: repeating-conic-gradient(#F8FAFC 0deg 18deg, #334155 18deg 30deg);
+    }
+    .denom-1 .chip-inlay { background: #F1F5F9; color: #0F172A; border-color: #94A3B8; }
+
+    .denom-5 {
+      background: repeating-conic-gradient(#DC2626 0deg 18deg, #F8FAFC 18deg 30deg);
+    }
+    .denom-25 {
+      background: repeating-conic-gradient(#059669 0deg 18deg, #F8FAFC 18deg 30deg);
+    }
+    .denom-100 {
+      background: repeating-conic-gradient(#18181B 0deg 18deg, #F5B841 18deg 30deg);
+    }
+    .denom-500 {
+      background: repeating-conic-gradient(#7C3AED 0deg 18deg, #F8FAFC 18deg 30deg);
+    }
+    .denom-1000 {
+      background: repeating-conic-gradient(#F59E0B 0deg 18deg, #1E293B 18deg 30deg);
+    }
+    .denom-1000 .chip-inlay { background: #FEF3C7; color: #78350F; border-color: #F59E0B; }
+
+    /* Hardware-Accelerated 60fps 3D Flying Chip Clone */
+    .flying-chip-3d {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 46px;
+      height: 46px;
+      margin-left: -23px;
+      margin-top: -23px;
+      border-radius: 50%;
+      z-index: 260;
+      pointer-events: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: inset 0 2px 3px rgba(255, 255, 255, 0.38);
+      will-change: transform, filter, opacity;
+      backface-visibility: hidden;
+      -webkit-backface-visibility: hidden;
+    }
+
+    .flying-chip-3d .chip-inlay {
+      width: 31px;
+      height: 31px;
+      font-size: 0.64rem;
+    }
+
+    /* Primary 4-Button Action Bar */
+    .action-bar {
+      display: grid;
+      grid-template-columns: 0.95fr 1.3fr 1.3fr 0.9fr;
+      gap: 8px;
+    }
+
+    .act-btn {
+      height: 54px;
+      border-radius: 15px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 0 6px;
+      font-weight: 800;
+      cursor: pointer;
+      transition: transform 0.1s ease, background 0.15s ease, opacity 0.15s ease;
+    }
+
+    .act-btn:active {
+      transform: scale(0.96);
+    }
+
+    .act-main-label {
+      font-size: 0.86rem;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+    }
+
+    .act-sub-label {
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      font-weight: 700;
+      opacity: 0.92;
+      margin-top: 1px;
+    }
+
+    .btn-fold {
+      background: var(--danger-muted);
+      color: var(--danger-text);
+      border: 1px solid rgba(225, 29, 72, 0.3);
+    }
+
+    .btn-fold.armed {
+      background: var(--danger);
+      color: #FFF;
+      border-color: #FFF;
+    }
+
+    .btn-call {
+      background: var(--emerald);
+      color: #04261C;
+    }
+
+    .btn-raise {
+      background: var(--gold);
+      color: #1B1202;
+    }
+
+    .btn-allin {
+      background: transparent;
+      color: var(--danger-text);
+      border: 1.5px solid rgba(225, 29, 72, 0.45);
+    }
+
+    .btn-allin.armed {
+      background: var(--danger);
+      color: #FFF;
+      border-color: #FFF;
+    }
+
+    /* ==========================================================
+       4. SUPER-SIMPLE HOST DRAWER & CONTEXTUAL SHEETS
+       ========================================================== */
+    .sheet-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(4, 9, 8, 0.78);
+      backdrop-filter: blur(5px);
+      -webkit-backdrop-filter: blur(5px);
+      z-index: 120;
+      display: none;
+      align-items: flex-end;
+      justify-content: center;
+    }
+
+    .sheet-backdrop.open {
+      display: flex;
+    }
+
+    .bottom-sheet {
+      width: 100%;
+      max-width: 520px;
+      max-height: 86dvh;
+      overflow-y: auto;
+      background: var(--surface-1);
+      border-top: 1px solid var(--border-bright);
+      border-radius: 24px 24px 0 0;
+      padding: 14px 18px max(22px, env(safe-area-inset-bottom));
+      box-shadow: 0 -16px 48px rgba(0, 0, 0, 0.65);
+      animation: sheetSlideUp 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    @keyframes sheetSlideUp {
+      from { transform: translate3d(0, 100%, 0); }
+      to { transform: translate3d(0, 0, 0); }
+    }
+
+    .sheet-handle {
+      width: 36px;
+      height: 4px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.18);
+      margin: 0 auto 12px;
+    }
+
+    .sheet-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+    }
+
+    .sheet-title {
+      font-size: 1.08rem;
+      font-weight: 800;
+    }
+
+    .sheet-close {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: var(--surface-2);
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+
+    /* 4-Button Host Grid */
+    .host-4-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .host-grid-card {
+      padding: 16px 12px;
+      border-radius: 16px;
+      background: var(--surface-2);
+      border: 1px solid var(--border-bright);
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 6px;
+      cursor: pointer;
+      text-align: left;
+    }
+
+    .host-grid-card:active {
+      transform: scale(0.97);
+      border-color: var(--gold);
+    }
+
+    .host-card-icon {
+      font-size: 1.25rem;
+    }
+
+    .host-card-title {
+      font-size: 0.88rem;
+      font-weight: 800;
+      color: var(--text-primary);
+    }
+
+    .host-card-sub {
+      font-size: 0.72rem;
+      color: var(--text-secondary);
+      line-height: 1.3;
+    }
+
+    /* Winner Picker & Split Pot Toggle */
+    .split-toggle-btn {
+      padding: 6px 12px;
+      border-radius: 10px;
+      background: var(--surface-2);
+      border: 1px solid var(--border-bright);
+      font-size: 0.76rem;
+      font-weight: 800;
+      color: var(--text-secondary);
+      cursor: pointer;
+    }
+
+    .split-toggle-btn.active {
+      background: var(--gold-soft);
+      border-color: var(--gold);
+      color: var(--gold);
+    }
+
+    .winner-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin: 12px 0;
+    }
+
+    .winner-card {
+      padding: 14px 12px;
+      border-radius: 14px;
+      background: var(--surface-2);
+      border: 2px solid var(--border-subtle);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      cursor: pointer;
+    }
+
+    .winner-card.selected {
+      border-color: var(--emerald);
+      background: rgba(16, 185, 129, 0.16);
+    }
+
+    /* Stack Manager Rows */
+    .stack-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+      padding: 9px 10px;
+      border-radius: 12px;
+      background: var(--surface-2);
+      margin-bottom: 6px;
+    }
+
+    .stack-row-name {
+      font-size: 0.86rem;
+      font-weight: 700;
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .stack-row-val {
+      font-family: var(--font-mono);
+      font-size: 0.86rem;
+      font-weight: 800;
+      color: var(--emerald);
+      margin-right: 4px;
+    }
+
+    .stack-adj-btn {
+      padding: 6px 9px;
+      border-radius: 8px;
+      background: var(--surface-3);
+      font-family: var(--font-mono);
+      font-size: 0.73rem;
+      font-weight: 800;
+      color: var(--text-primary);
+      cursor: pointer;
+    }
+
+    .buy-back-in-btn {
+      padding: 7px 11px;
+      border-radius: 9px;
+      background: var(--emerald);
+      color: #032218;
+      font-size: 0.74rem;
+      font-weight: 900;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    /* Busted Decision Modal */
+    .busted-option-box {
+      background: var(--surface-2);
+      border: 1px solid var(--border-bright);
+      border-radius: 16px;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .busted-option-title {
+      font-size: 0.82rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--gold);
+    }
+
+    .busted-rebuy-btns {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .rebuy-choice-btn {
+      height: 48px;
+      border-radius: 12px;
+      background: var(--emerald);
+      color: #032218;
+      font-size: 0.86rem;
+      font-weight: 900;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      line-height: 1.15;
+    }
+
+    .rebuy-custom-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .rebuy-custom-input {
+      flex: 1;
+      height: 42px;
+      padding: 0 12px;
+      border-radius: 10px;
+      background: var(--surface-1);
+      border: 1px solid var(--border-subtle);
+      font-family: var(--font-mono);
+      font-size: 0.95rem;
+      font-weight: 800;
+      color: var(--text-primary);
+    }
+
+    .rebuy-custom-btn {
+      height: 42px;
+      padding: 0 14px;
+      border-radius: 10px;
+      background: var(--gold);
+      color: #1A1102;
+      font-size: 0.82rem;
+      font-weight: 900;
+      cursor: pointer;
+    }
+
+    .make-spectator-btn {
+      width: 100%;
+      height: 48px;
+      border-radius: 14px;
+      background: var(--surface-2);
+      border: 1.5px solid var(--border-bright);
+      color: var(--text-secondary);
+      font-size: 0.9rem;
+      font-weight: 800;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .make-spectator-btn:active {
+      transform: scale(0.98);
+      border-color: var(--danger);
+      color: var(--danger-text);
+    }
+
+    .minimal-toast {
+      position: fixed;
+      top: 66px;
+      left: 50%;
+      transform: translate3d(-50%, -8px, 0);
+      background: var(--surface-2);
+      border: 1px solid var(--border-bright);
+      color: var(--text-primary);
+      padding: 7px 14px;
+      border-radius: 999px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.18s ease, transform 0.18s ease;
+      z-index: 300;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+    }
+
+    .minimal-toast.show {
+      opacity: 1;
+      transform: translate3d(-50%, 0, 0);
+    }
+  </style>
+</head>
+<body>
+  <!-- ==========================================================
+       SCREEN 1: HOME SCREEN (2 BIG BUTTONS ONLY)
+       ========================================================== -->
+  <section id="homeScreen" class="screen-overlay active">
+    <div class="home-container">
+      <div class="brand-mark">
+        <div class="brand-chip-logo">
+          <div class="brand-chip-inner">$</div>
+        </div>
+        <h1 class="brand-title">ALL IN</h1>
+        <p class="brand-sub">Tactile offline poker chips & automatic side-pot engine for real-life card night.</p>
+      </div>
+
+      <div class="home-btn-stack">
+        <button class="big-home-btn host" onclick="openHostLobby()">
+          <span>👑</span>
+          <span>HOST GAME</span>
+        </button>
+        <button class="big-home-btn join" onclick="openJoinLobby()">
+          <span>📱</span>
+          <span>JOIN GAME</span>
+        </button>
+      </div>
+
+      <button id="resumeGameBtn" class="resume-link-btn" onclick="resumeSavedTable()">
+        Resume Active Game Table →
+      </button>
+    </div>
+  </section>
+
+  <!-- ==========================================================
+       SCREEN 2: HOST WAITING LOBBY (QR CODE + LIVE PLAYER LIST)
+       ========================================================== -->
+  <section id="hostLobbyScreen" class="screen-overlay">
+    <div class="lobby-card">
+      <div class="lobby-top-bar">
+        <button class="lobby-back-btn" onclick="showScreen('homeScreen')">← Home</button>
+        <span class="lobby-title">Host Waiting Lobby</span>
+        <span style="width:52px;"></span>
+      </div>
+
+      <!-- Tap-to-Cycle Settings Pill Bar -->
+      <div class="settings-pill-bar">
+        <button class="cycle-pill" onclick="cycleStartingStack()">
+          <span class="cycle-pill-label">Starting Stack (Tap)</span>
+          <span id="lobbyStackPillVal" class="cycle-pill-val">$1,000</span>
+        </button>
+        <button class="cycle-pill" onclick="cycleBlindsPreset()">
+          <span class="cycle-pill-label">Blinds (Tap)</span>
+          <span id="lobbyBlindsPillVal" class="cycle-pill-val">$5 / $10</span>
+        </button>
+      </div>
+
+      <!-- Built-In Scannable Offline QR Code -->
+      <div class="qr-banner">
+        <div id="qrCodeContainer" class="qr-svg-wrap" title="Scan with phone camera to join"></div>
+        <div class="qr-info">
+          <span id="qrRoomCodeTag" class="qr-room-tag">ROOM: MAIN</span>
+          <span class="qr-headline">Scan to Join Table</span>
+          <span id="qrJoinUrlText" class="qr-url-text">Connecting local hotspot...</span>
+        </div>
+      </div>
+
+      <!-- Live Player Roster -->
+      <div class="lobby-roster-section">
+        <div class="lobby-section-header">
+          <span>Seated Players (<span id="lobbyPlayerCount">1</span>)</span>
+          <span>Min 2 to Start</span>
+        </div>
+
+        <div id="lobbyPlayersList" class="lobby-players-list"></div>
+
+        <button class="add-local-player-btn" onclick="addLocalLobbyPlayer()">
+          + Add Local Player (On My Phone)
+        </button>
+      </div>
+
+      <button id="startGameNightBtn" class="start-game-night-btn" onclick="hostStartGameNight()">
+        START GAME NIGHT
+      </button>
+    </div>
+  </section>
+
+  <!-- ==========================================================
+       SCREEN 3: CLIENT "JOIN GAME" WAITING SCREEN
+       ========================================================== -->
+  <section id="joinLobbyScreen" class="screen-overlay">
+    <div class="lobby-card">
+      <div class="lobby-top-bar">
+        <button class="lobby-back-btn" onclick="showScreen('homeScreen')">← Home</button>
+        <span class="lobby-title">Join Friend's Table</span>
+        <span style="width:52px;"></span>
+      </div>
+
+      <div style="display:flex; flex-direction:column; gap:10px;">
+        <div style="background:var(--surface-2); border:1px solid var(--border-bright); border-radius:14px; padding:12px;">
+          <div class="cycle-pill-label" style="margin-bottom:4px;">Your Name at the Table</div>
+          <input id="clientJoinNameInput" type="text" placeholder="Enter your name..." value="" style="font-size:1.1rem; font-weight:800; width:100%; color:var(--text-primary);" />
+        </div>
+
+        <div style="background:var(--surface-2); border:1px solid var(--border-subtle); border-radius:14px; padding:10px 12px;">
+          <div class="cycle-pill-label" style="margin-bottom:4px;">Host Server Address (Auto-filled from QR)</div>
+          <input id="clientHostUrlInput" type="text" placeholder="ws://192.168.x.x:3000" style="font-family:var(--font-mono); font-size:0.86rem; width:100%; color:var(--text-secondary);" />
+        </div>
+
+        <button id="clientJoinSubmitBtn" class="start-game-night-btn" onclick="submitClientJoinLobby()">
+          JOIN LOBBY
+        </button>
+
+        <div id="clientWaitingBox" style="display:none; text-align:center; padding:14px; border-radius:14px; background:var(--surface-2); border:1px solid var(--emerald);">
+          <div style="font-weight:800; color:var(--emerald); font-size:0.95rem;">✓ You're in the Lobby!</div>
+          <div id="clientWaitingSub" style="font-size:0.8rem; color:var(--text-secondary); margin-top:4px;">Waiting for the Host to tap START GAME NIGHT...</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==========================================================
+       SCREEN 4: GRAND "🏆 TABLE CHAMPION!" CELEBRATION SCREEN
+       ========================================================== -->
+  <section id="championScreen" class="screen-overlay">
+    <div class="home-container">
+      <div class="brand-mark">
+        <div style="font-size:3.6rem; line-height:1;">🏆</div>
+        <div style="font-size:0.8rem; font-weight:900; letter-spacing:0.14em; color:var(--gold); text-transform:uppercase; margin-top:6px;">
+          Table Champion
+        </div>
+        <h1 id="championNameTitle" class="brand-title" style="font-size:2.4rem; color:var(--text-primary);">Alex</h1>
+        <div id="championStackLabel" style="font-family:var(--font-mono); font-size:1.5rem; font-weight:900; color:var(--emerald); margin-top:4px;">
+          $4,000 Total Chips
+        </div>
+        <p class="brand-sub" style="margin-top:6px;">All other players busted out to Spectator mode. What a game night!</p>
+      </div>
+
+      <div class="home-btn-stack">
+        <button class="big-home-btn host" onclick="resetTableNewGame()">
+          <span>🔄</span>
+          <span>RESET TABLE / NEW GAME</span>
+        </button>
+        <button class="big-home-btn join" onclick="openHostLobby()">
+          <span>⚙️</span>
+          <span>HOST WAITING LOBBY</span>
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==========================================================
+       MAIN GAME VIEWPORT: ZERO-NOISE CASINO TABLE
+       ========================================================== -->
+  <div class="app-viewport">
+    <!-- 1. TOP ZONE: THE ACTIVE POT -->
+    <header class="top-zone">
+      <button class="room-pill-btn" onclick="openHostLobby()" title="Lobby & QR Code">
+        <span class="live-dot"></span>
+        <span id="topRoomLabel">Lobby</span>
+      </button>
+
+      <div class="pot-label-row">
+        <span class="pot-prefix">POT:</span>
+        <span id="potDisplay" class="pot-amount">$0</span>
+      </div>
+
+      <div class="street-meta">
+        <span id="streetDisplay" class="street-name">Pre-Flop</span>
+        <span class="street-dot"></span>
+        <span id="callTargetDisplay">To Call: $0</span>
+      </div>
+
+      <div id="sidePotsBar" class="side-pots-bar"></div>
+
+      <!-- 1-Tap Host Crown/Gear Icon -->
+      <button class="host-drawer-btn" onclick="openHostDrawer()" aria-label="Host Controls">
+        👑
+      </button>
+    </header>
+
+    <!-- 2. MIDDLE ZONE: THE TABLE RING & STAGING PILE -->
+    <main class="middle-zone">
+      <div class="table-ring-track">
+        <div id="centerPotVisual" class="center-pot-visual">
+          <div id="boardPips" class="center-street-dots">
+            <div class="board-pip"></div>
+            <div class="board-pip"></div>
+            <div class="board-pip"></div>
+            <div class="board-pip"></div>
+            <div class="board-pip"></div>
+          </div>
+          <!-- Center Main Pot Visual 3D Stack Anchor -->
+          <div id="centerPotStackAnchor" class="center-pot-stack-anchor"></div>
+        </div>
+
+        <!-- 3D Stacked Staging Pile in Front of Active Player (Tap to Pull Back) -->
+        <div id="stagingPileZone" class="staging-pile-zone" onclick="pullBackTopStagedChip()" title="Tap pile to pull back top chip">
+          <div id="stagingChipsStack" class="staging-chips-stack"></div>
+          <div id="stagingPileLabel" class="staging-empty-hint">Tap chips below to stage bet</div>
+        </div>
+      </div>
+
+      <!-- Dynamic Player Oval Badges -->
+      <div id="seatsLayer" class="seats-layer"></div>
+    </main>
+
+    <!-- 3. BOTTOM ZONE: SPECTATOR BANNER OR QUICK-FILL PILLS + 3D CHIP RACK + ACTION BAR -->
+    <div>
+      <!-- Connected Wi-Fi Phone Spectator Banner -->
+      <div id="spectatorClientBanner" class="spectator-client-banner">
+        <div>
+          <div class="spectator-banner-text">👻 You are Spectating — Ask Host to Rebuy</div>
+          <div style="font-size:0.74rem; color:var(--text-secondary); margin-top:2px;">Watching live table action</div>
+        </div>
+        <button class="request-rebuy-btn" onclick="sendClientRebuyRequest()">👋 Request Rebuy</button>
+      </div>
+
+      <footer id="actionDock" class="bottom-zone">
+        <!-- Subtle Quick-Fill Pills -->
+        <div class="quick-fill-row">
+          <button id="qfMinBtn" class="quick-fill-pill" onclick="quickStagePreset('min', this)">Min Raise</button>
+          <button id="qfHalfBtn" class="quick-fill-pill" onclick="quickStagePreset('half', this)">½ Pot</button>
+          <button id="qfPotBtn" class="quick-fill-pill" onclick="quickStagePreset('pot', this)">Pot</button>
+          <button id="qfClearBtn" class="quick-fill-pill" onclick="clearStagedChipsAnimated()">Clear</button>
+        </div>
+
+        <!-- 3D Tactile Casino Chip Rack ($1, $5, $25, $100, $500, $1000) -->
+        <div id="chipRackArc" class="chip-rack-arc"></div>
+
+        <!-- 4 Thumb-Friendly Action Buttons -->
+        <div class="action-bar">
+          <button id="btnFold" class="act-btn btn-fold" onclick="handleFoldTap()">
+            <span id="foldMainLabel" class="act-main-label">Fold</span>
+            <span id="foldSubLabel" class="act-sub-label"></span>
+          </button>
+
+          <button id="btnCall" class="act-btn btn-call" onclick="handleCheckOrCall()">
+            <span id="callMainLabel" class="act-main-label">Check</span>
+            <span id="callSubLabel" class="act-sub-label"></span>
+          </button>
+
+          <button id="btnRaise" class="act-btn btn-raise" onclick="handleRaiseConfirmTap(this)">
+            <span id="raiseMainLabel" class="act-main-label">Raise</span>
+            <span id="raiseSubLabel" class="act-sub-label"></span>
+          </button>
+
+          <button id="btnAllIn" class="act-btn btn-allin" onclick="handleAllInTap(this)">
+            <span id="allInMainLabel" class="act-main-label">All-In</span>
+            <span id="allInSubLabel" class="act-sub-label"></span>
+          </button>
+        </div>
+      </footer>
+    </div>
+  </div>
+
+  <!-- Minimal Toast Banner -->
+  <div id="minimalToast" class="minimal-toast"></div>
+
+  <!-- ==========================================================
+       SUPER-SIMPLE HOST DRAWER (4-BUTTON GRID)
+       ========================================================== -->
+  <div id="hostDrawerSheet" class="sheet-backdrop" onclick="closeSheet('hostDrawerSheet')">
+    <div class="bottom-sheet" onclick="event.stopPropagation()">
+      <div class="sheet-handle"></div>
+      <div class="sheet-header">
+        <span class="sheet-title">👑 Host Controls</span>
+        <button class="sheet-close" onclick="closeSheet('hostDrawerSheet')">✕</button>
+      </div>
+
+      <div class="host-4-grid">
+        <button class="host-grid-card" onclick="closeSheet('hostDrawerSheet'); openAwardPotModal(false);">
+          <span class="host-card-icon">🏆</span>
+          <span class="host-card-title">Award Pot / Winner</span>
+          <span class="host-card-sub">Pick winner or split pot</span>
+        </button>
+
+        <button class="host-grid-card" onclick="undoLastAction()">
+          <span class="host-card-icon">↩</span>
+          <span class="host-card-title">Undo Last Move</span>
+          <span class="host-card-sub">Revert misclick (<span id="undoCountLabel">0</span> saved)</span>
+        </button>
+
+        <button class="host-grid-card" onclick="closeSheet('hostDrawerSheet'); openManageStacksSheet();">
+          <span class="host-card-icon">🪙</span>
+          <span class="host-card-title">Manage Stacks (+ / -)</span>
+          <span class="host-card-sub">+$500 / -$500 or Buy Back In</span>
+        </button>
+
+        <button class="host-grid-card" onclick="closeSheet('hostDrawerSheet'); openForceSkipSheet();">
+          <span class="host-card-icon">⏭</span>
+          <span class="host-card-title">Next Street / Skip</span>
+          <span class="host-card-sub">Advance street or skip AFK</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==========================================================
+       MODAL 1: AWARD POT / PICK WINNER (WITH SPLIT POT TOGGLE)
+       ========================================================== -->
+  <div id="awardPotSheet" class="sheet-backdrop">
+    <div class="bottom-sheet" onclick="event.stopPropagation()">
+      <div class="sheet-handle"></div>
+      <div class="sheet-header">
+        <div>
+          <div id="awardPotTitle" class="sheet-title">Who Won the Pot?</div>
+          <div id="awardPotSubtitle" style="font-size:0.78rem; color:var(--text-secondary); margin-top:2px;">Tap a player to sweep chips</div>
+        </div>
+        <button id="splitPotToggleBtn" class="split-toggle-btn" onclick="toggleSplitPotMode()">Split Pot: Off</button>
+      </div>
+
+      <div id="winnerSelectionGrid" class="winner-grid"></div>
+
+      <button id="confirmSplitAwardBtn" class="start-game-night-btn" style="display:none; margin-top:8px;" onclick="confirmWinnerAward()">
+        Award Split Pot
+      </button>
+    </div>
+  </div>
+
+  <!-- ==========================================================
+       MODAL 2: MANAGE STACKS (+ $500 / - $500 / BUY BACK IN)
+       ========================================================== -->
+  <div id="manageStacksSheet" class="sheet-backdrop" onclick="closeSheet('manageStacksSheet')">
+    <div class="bottom-sheet" onclick="event.stopPropagation()">
+      <div class="sheet-handle"></div>
+      <div class="sheet-header">
+        <span class="sheet-title">🪙 Manage Stacks & Spectators</span>
+        <button class="sheet-close" onclick="closeSheet('manageStacksSheet')">✕</button>
+      </div>
+      <div id="manageStacksList"></div>
+    </div>
+  </div>
+
+  <!-- ==========================================================
+       MODAL 3: NEXT STREET / FORCE SKIP AFK PLAYER
+       ========================================================== -->
+  <div id="forceSkipSheet" class="sheet-backdrop" onclick="closeSheet('forceSkipSheet')">
+    <div class="bottom-sheet" onclick="event.stopPropagation()">
+      <div class="sheet-handle"></div>
+      <div class="sheet-header">
+        <span class="sheet-title">⏭ Next Street / Force Skip</span>
+        <button class="sheet-close" onclick="closeSheet('forceSkipSheet')">✕</button>
+      </div>
+      <div class="host-4-grid">
+        <button class="host-grid-card" onclick="forceAdvanceStreet()">
+          <span class="host-card-icon">➡️</span>
+          <span class="host-card-title">Advance Next Street</span>
+          <span class="host-card-sub">Move to Flop / Turn / River / Showdown</span>
+        </button>
+        <button class="host-grid-card" onclick="forceCheckOrFoldCurrentPlayer()">
+          <span class="host-card-icon">💤</span>
+          <span class="host-card-title">Skip AFK Player</span>
+          <span class="host-card-sub">Auto-Check if free, otherwise Fold</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==========================================================
+       MODAL 4: AUTOMATIC END-OF-HAND "PLAYER BUSTED ($0)" MODAL
+       ========================================================== -->
+  <div id="bustedModalSheet" class="sheet-backdrop">
+    <div class="bottom-sheet" onclick="event.stopPropagation()">
+      <div class="sheet-handle"></div>
+      <div class="sheet-header">
+        <div>
+          <div id="bustedModalHeader" class="sheet-title">💸 Player is Busted ($0)</div>
+          <div style="font-size:0.78rem; color:var(--text-secondary); margin-top:2px;">Choose whether they rebuy or spectate</div>
+        </div>
+      </div>
+
+      <!-- Option A: Rebuy / Add Chips -->
+      <div class="busted-option-box">
+        <div class="busted-option-title">💰 Option A — Rebuy / Add Chips</div>
+        <div class="busted-rebuy-btns">
+          <button id="bustedFullStackBtn" class="rebuy-choice-btn" onclick="resolveBustedPlayerRebuy('full')">
+            <span>+ Starting Stack</span>
+            <span id="bustedFullStackVal" style="font-family:var(--font-mono); font-size:0.76rem; opacity:0.9;">$1,000</span>
+          </button>
+          <button id="bustedHalfStackBtn" class="rebuy-choice-btn" onclick="resolveBustedPlayerRebuy('half')">
+            <span>+ ½ Stack</span>
+            <span id="bustedHalfStackVal" style="font-family:var(--font-mono); font-size:0.76rem; opacity:0.9;">$500</span>
+          </button>
+        </div>
+
+        <div class="rebuy-custom-row">
+          <input id="bustedCustomInput" type="number" class="rebuy-custom-input" placeholder="Custom amount ($)" value="1000" min="10" step="50" />
+          <button class="rebuy-custom-btn" onclick="resolveBustedPlayerRebuy('custom')">Add Custom</button>
+        </div>
+      </div>
+
+      <!-- Option B: Make Spectator (Out of Game) -->
+      <button class="make-spectator-btn" onclick="resolveBustedPlayerSpectator()">
+        <span>👻</span>
+        <span>Make Spectator (Out of Game)</span>
+      </button>
+    </div>
+  </div>
+
+  <script>
+    /* ==========================================================
+       1. SELF-CONTAINED SVG QR CODE GENERATOR (ISO/IEC 18004)
+       Generates real, camera-scannable QR codes 100% offline.
+       ========================================================== */
+    const OfflineQR = (() => {
+      const EXP = new Uint8Array(512);
+      const LOG = new Uint8Array(256);
+      (() => {
+        let x = 1;
+        for (let i = 0; i < 255; i++) {
+          EXP[i] = x;
+          LOG[x] = i;
+          x <<= 1;
+          if (x & 0x100) x ^= 0x11d;
+        }
+        for (let i = 255; i < 512; i++) EXP[i] = EXP[i - 255];
+      })();
+
+      function gfMul(a, b) {
+        return (a === 0 || b === 0) ? 0 : EXP[LOG[a] + LOG[b]];
+      }
+
+      function polyMul(p, q) {
+        const out = new Uint8Array(p.length + q.length - 1);
+        for (let i = 0; i < p.length; i++) {
+          for (let j = 0; j < q.length; j++) {
+            out[i + j] ^= gfMul(p[i], q[j]);
+          }
+        }
+        return out;
+      }
+
+      function rsGeneratorPoly(degree) {
+        let g = new Uint8Array([1]);
+        for (let i = 0; i < degree; i++) {
+          g = polyMul(g, new Uint8Array([1, EXP[i]]));
+        }
+        return g;
+      }
+
+      function rsEncode(data, ecLen) {
+        const gen = rsGeneratorPoly(ecLen);
+        const msg = new Uint8Array(data.length + ecLen);
+        msg.set(data, 0);
+        for (let i = 0; i < data.length; i++) {
+          const coef = msg[i];
+          if (coef !== 0) {
+            for (let j = 0; j < gen.length; j++) {
+              msg[i + j] ^= gfMul(gen[j], coef);
+            }
+          }
+        }
+        return msg.slice(data.length);
+      }
+
+      const VERSIONS = [
+        null,
+        { v: 1, size: 21, totalCodewords: 26, ecCodewords: 7, align: [] },
+        { v: 2, size: 25, totalCodewords: 44, ecCodewords: 10, align: [6, 18] },
+        { v: 3, size: 29, totalCodewords: 70, ecCodewords: 15, align: [6, 22] },
+        { v: 4, size: 33, totalCodewords: 100, ecCodewords: 20, align: [6, 26] },
+        { v: 5, size: 37, totalCodewords: 134, ecCodewords: 26, align: [6, 30] }
+      ];
+
+      function pickVersion(byteLen) {
+        for (let v = 1; v <= 5; v++) {
+          const cap = VERSIONS[v].totalCodewords - VERSIONS[v].ecCodewords - 2;
+          if (byteLen <= cap) return VERSIONS[v];
+        }
+        return VERSIONS[5];
+      }
+
+      function createMatrix(text) {
+        const utf8 = new TextEncoder().encode(text);
+        const ver = pickVersion(utf8.length);
+        const dataCap = ver.totalCodewords - ver.ecCodewords;
+
+        const bits = [];
+        const pushBits = (val, len) => {
+          for (let i = len - 1; i >= 0; i--) bits.push((val >>> i) & 1);
+        };
+
+        const usableBytes = utf8.slice(0, dataCap - 2);
+        pushBits(0b0100, 4);
+        pushBits(usableBytes.length, 8);
+        for (const b of usableBytes) pushBits(b, 8);
+        pushBits(0, Math.min(4, dataCap * 8 - bits.length));
+        while (bits.length % 8 !== 0) bits.push(0);
+
+        const dataBytes = new Uint8Array(dataCap);
+        for (let i = 0; i < bits.length / 8; i++) {
+          let byte = 0;
+          for (let b = 0; b < 8; b++) byte = (byte << 1) | bits[i * 8 + b];
+          dataBytes[i] = byte;
+        }
+        const pads = [0xec, 0x11];
+        for (let i = bits.length / 8, p = 0; i < dataCap; i++, p ^= 1) {
+          dataBytes[i] = pads[p];
+        }
+
+        const ecBytes = rsEncode(dataBytes, ver.ecCodewords);
+        const allCodewords = new Uint8Array(ver.totalCodewords);
+        allCodewords.set(dataBytes, 0);
+        allCodewords.set(ecBytes, dataCap);
+
+        const N = ver.size;
+        const grid = Array.from({ length: N }, () => new Int8Array(N));
+        const reserved = Array.from({ length: N }, () => new Uint8Array(N));
+
+        const setModule = (r, c, val, isFunc = true) => {
+          if (r < 0 || r >= N || c < 0 || c >= N) return;
+          grid[r][c] = val ? 1 : 0;
+          if (isFunc) reserved[r][c] = 1;
+        };
+
+        const drawFinder = (r0, c0) => {
+          for (let dr = -1; dr <= 7; dr++) {
+            for (let dc = -1; dc <= 7; dc++) {
+              const r = r0 + dr, c = c0 + dc;
+              if (r < 0 || r >= N || c < 0 || c >= N) continue;
+              const onBorder = (dr >= 0 && dr <= 6 && (dc === 0 || dc === 6)) ||
+                               (dc >= 0 && dc <= 6 && (dr === 0 || dr === 6));
+              const inCenter = dr >= 2 && dr <= 4 && dc >= 2 && dc <= 4;
+              setModule(r, c, onBorder || inCenter, true);
+            }
+          }
+        };
+        drawFinder(0, 0);
+        drawFinder(0, N - 7);
+        drawFinder(N - 7, 0);
+
+        if (ver.align.length > 0) {
+          const [, a1] = ver.align;
+          for (let dr = -2; dr <= 2; dr++) {
+            for (let dc = -2; dc <= 2; dc++) {
+              const dist = Math.max(Math.abs(dr), Math.abs(dc));
+              setModule(a1 + dr, a1 + dc, dist === 2 || dist === 0, true);
+            }
+          }
+        }
+
+        for (let i = 8; i < N - 8; i++) {
+          if (!reserved[6][i]) setModule(6, i, i % 2 === 0, true);
+          if (!reserved[i][6]) setModule(i, 6, i % 2 === 0, true);
+        }
+
+        setModule(N - 8, 8, 1, true);
+        for (let i = 0; i < 9; i++) {
+          if (!reserved[8][i]) reserved[8][i] = 1;
+          if (!reserved[i][8]) reserved[i][8] = 1;
+        }
+        for (let i = 0; i < 8; i++) {
+          reserved[8][N - 1 - i] = 1;
+          reserved[N - 1 - i][8] = 1;
+        }
+
+        let bitIdx = 0;
+        const totalBits = allCodewords.length * 8;
+        let upward = true;
+        for (let right = N - 1; right >= 1; right -= 2) {
+          if (right === 6) right = 5;
+          for (let v = 0; v < N; v++) {
+            const r = upward ? N - 1 - v : v;
+            for (let cOff = 0; cOff < 2; cOff++) {
+              const c = right - cOff;
+              if (!reserved[r][c]) {
+                let bit = 0;
+                if (bitIdx < totalBits) {
+                  bit = (allCodewords[bitIdx >>> 3] >>> (7 - (bitIdx & 7))) & 1;
+                  bitIdx++;
+                }
+                if ((r + c) % 2 === 0) bit ^= 1;
+                grid[r][c] = bit;
+              }
+            }
+          }
+          upward = !upward;
+        }
+
+        const fmt = 0x77c4;
+        const fmtBits = [];
+        for (let i = 0; i < 15; i++) fmtBits.push((fmt >>> i) & 1);
+
+        for (let i = 0; i <= 5; i++) grid[8][i] = fmtBits[i];
+        grid[8][7] = fmtBits[6];
+        grid[8][8] = fmtBits[7];
+        grid[7][8] = fmtBits[8];
+        for (let i = 9; i < 15; i++) grid[14 - i][8] = fmtBits[i];
+
+        for (let i = 0; i < 8; i++) grid[8][N - 1 - i] = fmtBits[i];
+        for (let i = 8; i < 15; i++) grid[N - 15 + i][8] = fmtBits[i];
+
+        return grid;
+      }
+
+      function toSVG(text) {
+        const grid = createMatrix(text);
+        const N = grid.length;
+        let path = '';
+        for (let r = 0; r < N; r++) {
+          for (let c = 0; c < N; c++) {
+            if (grid[r][c]) path += `M${c},${r}h1v1h-1z`;
+          }
+        }
+        return `<svg viewBox="-1 -1 ${N + 2} ${N + 2}" xmlns="http://www.w3.org/2000/svg" shape-rendering="crispEdges"><path d="${path}" fill="#0B1311"/></svg>`;
+      }
+
+      return { toSVG };
+    })();
+
+    /* ==========================================================
+       2. OFFLINE SYNTHESIZED WEB AUDIO & HAPTIC ENGINE
+       ========================================================== */
+    const Sound = {
+      ctx: null,
+      enabled: true,
+
+      init() {
+        if (!this.ctx) {
+          const AudioCtx = window.AudioContext || window.webkitAudioContext;
+          if (AudioCtx) this.ctx = new AudioCtx();
+        }
+        if (this.ctx && this.ctx.state === 'suspended') {
+          this.ctx.resume().catch(() => {});
+        }
+      },
+
+      vibrate(pattern) {
+        if (navigator.vibrate) {
+          try { navigator.vibrate(pattern); } catch (_) {}
+        }
+      },
+
+      chipThrow(pitch = 1, hzOffset = 0) {
+        this.vibrate(8);
+        if (!this.enabled) return;
+        this.init();
+        if (!this.ctx) return;
+        const now = this.ctx.currentTime;
+        [2400 * pitch + hzOffset, 3950 * pitch + hzOffset * 1.4, 5800 * pitch + hzOffset * 1.8].forEach((freq, i) => {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = i === 0 ? 'triangle' : 'sine';
+          osc.frequency.setValueAtTime(Math.max(300, freq), now);
+          osc.frequency.exponentialRampToValueAtTime(Math.max(250, freq * 0.91), now + 0.065);
+          gain.gain.setValueAtTime(0.12 / (i + 1), now);
+          gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.07);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(now);
+          osc.stop(now + 0.075);
+        });
+      },
+
+      potGather() {
+        this.vibrate([12, 30, 16]);
+        if (!this.enabled) return;
+        for (let i = 0; i < 5; i++) {
+          setTimeout(() => this.chipThrow(0.92 + i * 0.04, i * 35), i * 42);
+        }
+      },
+
+      woodCheck() {
+        this.vibrate([15, 55, 18]);
+        if (!this.enabled) return;
+        this.init();
+        if (!this.ctx) return;
+        [0, 0.11].forEach((offset, idx) => {
+          const now = this.ctx.currentTime + offset;
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(idx === 0 ? 168 : 148, now);
+          osc.frequency.exponentialRampToValueAtTime(52, now + 0.085);
+          gain.gain.setValueAtTime(0.34, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.09);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(now);
+          osc.stop(now + 0.095);
+        });
+      },
+
+      foldSwoosh() {
+        this.vibrate(14);
+        if (!this.enabled) return;
+        this.init();
+        if (!this.ctx) return;
+        const now = this.ctx.currentTime;
+        const dur = 0.17;
+        const bufSize = this.ctx.sampleRate * dur;
+        const buf = this.ctx.createBuffer(1, bufSize, this.ctx.sampleRate);
+        const data = buf.getChannelData(0);
+        for (let i = 0; i < bufSize; i++) {
+          data[i] = (Math.random() * 2 - 1) * Math.sin((i / bufSize) * Math.PI);
+        }
+        const src = this.ctx.createBufferSource();
+        src.buffer = buf;
+        const filter = this.ctx.createBiquadFilter();
+        filter.type = 'bandpass';
+        filter.frequency.setValueAtTime(950, now);
+        filter.frequency.exponentialRampToValueAtTime(310, now + dur);
+        const gain = this.ctx.createGain();
+        gain.gain.setValueAtTime(0.2, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + dur);
+        src.connect(filter);
+        filter.connect(gain);
+        gain.connect(this.ctx.destination);
+        src.start(now);
+      },
+
+      allInCascade() {
+        this.vibrate([40, 40, 90]);
+        document.body.classList.remove('shake');
+        void document.body.offsetWidth;
+        document.body.classList.add('shake');
+
+        if (!this.enabled) return;
+        this.init();
+        if (!this.ctx) return;
+        const now = this.ctx.currentTime;
+
+        const sub = this.ctx.createOscillator();
+        const subGain = this.ctx.createGain();
+        sub.type = 'sine';
+        sub.frequency.setValueAtTime(120, now);
+        sub.frequency.exponentialRampToValueAtTime(34, now + 0.5);
+        subGain.gain.setValueAtTime(0.5, now);
+        subGain.gain.exponentialRampToValueAtTime(0.001, now + 0.52);
+        sub.connect(subGain);
+        subGain.connect(this.ctx.destination);
+        sub.start(now);
+        sub.stop(now + 0.54);
+
+        const synth = this.ctx.createOscillator();
+        const synthGain = this.ctx.createGain();
+        synth.type = 'sawtooth';
+        synth.frequency.setValueAtTime(196, now);
+        synth.frequency.exponentialRampToValueAtTime(392, now + 0.42);
+        synthGain.gain.setValueAtTime(0.06, now);
+        synthGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.44);
+        synth.connect(synthGain);
+        synthGain.connect(this.ctx.destination);
+        synth.start(now);
+        synth.stop(now + 0.46);
+      },
+
+      winnerSweep() {
+        this.vibrate([25, 45, 40, 45, 60]);
+        if (!this.enabled) return;
+        this.init();
+        if (!this.ctx) return;
+        const now = this.ctx.currentTime + 0.08;
+        [523.25, 659.25, 783.99, 1046.5].forEach((freq, idx) => {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(freq, now + idx * 0.05);
+          gain.gain.setValueAtTime(0.08, now + idx * 0.05);
+          gain.gain.exponentialRampToValueAtTime(0.0001, now + idx * 0.05 + 0.42);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(now + idx * 0.05);
+          osc.stop(now + idx * 0.05 + 0.44);
+        });
+      },
+
+      // Subtle descending "eliminated / sad trombone / low thud" cue when player becomes a Spectator
+      spectatorEliminated() {
+        this.vibrate([30, 50, 70]);
+        if (!this.enabled) return;
+        this.init();
+        if (!this.ctx) return;
+        const now = this.ctx.currentTime;
+        const notes = [293.66, 277.18, 261.63, 196.0];
+        notes.forEach((freq, idx) => {
+          const start = now + idx * 0.14;
+          const dur = idx === 3 ? 0.38 : 0.13;
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(freq, start);
+          if (idx === 3) {
+            osc.frequency.exponentialRampToValueAtTime(freq * 0.88, start + dur);
+          }
+          gain.gain.setValueAtTime(0.16, start);
+          gain.gain.exponentialRampToValueAtTime(0.0001, start + dur);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(start);
+          osc.stop(start + dur + 0.02);
+        });
+      }
+    };
+
+    // Automatic Screen Wake Lock
+    let wakeLockSentinel = null;
+    async function enableWakeLock() {
+      if ('wakeLock' in navigator && !wakeLockSentinel) {
+        try {
+          wakeLockSentinel = await navigator.wakeLock.request('screen');
+          wakeLockSentinel.addEventListener('release', () => { wakeLockSentinel = null; });
+        } catch (_) {}
+      }
+    }
+    document.addEventListener('pointerdown', () => {
+      Sound.init();
+      enableWakeLock();
+    }, { passive: true });
+
+    /* ==========================================================
+       3. 60FPS HARDWARE-ACCELERATED CHIP FLIGHT & TICKER ENGINE
+       ========================================================== */
+    const CHIP_DENOMS = [
+      { val: 1, cls: 'denom-1', color: '#F8FAFC', text: '#0F172A' },
+      { val: 5, cls: 'denom-5', color: '#DC2626', text: '#FFFFFF' },
+      { val: 25, cls: 'denom-25', color: '#059669', text: '#FFFFFF' },
+      { val: 100, cls: 'denom-100', color: '#18181B', text: '#F5B841' },
+      { val: 500, cls: 'denom-500', color: '#7C3AED', text: '#FFFFFF' },
+      { val: 1000, cls: 'denom-1000', color: '#F59E0B', text: '#0F172A' }
+    ];
+
+    function getDenomMeta(denom) {
+      return CHIP_DENOMS.find(d => d.val === denom) || CHIP_DENOMS[1];
+    }
+
+    function animateChipFlight(options) {
+      const {
+        denom = 25,
+        fromRect,
+        toRect,
+        targetOffsetX = 0,
+        targetOffsetY = 0,
+        delay = 0,
+        duration = 360,
+        mode = 'throw',
+        startScale = 1,
+        endScale = 0.91,
+        onLand = null
+      } = options;
+
+      if (!fromRect || !toRect) {
+        if (onLand) setTimeout(onLand, delay);
+        return;
+      }
+
+      const meta = getDenomMeta(denom);
+      const clone = document.createElement('div');
+      clone.className = `flying-chip-3d ${meta.cls}`;
+      clone.innerHTML = `<div class="chip-inlay">$${denom}</div>`;
+      clone.style.opacity = delay > 0 ? '0' : '1';
+      document.body.appendChild(clone);
+
+      const startX = fromRect.left + fromRect.width / 2;
+      const startY = fromRect.top + fromRect.height / 2;
+      const endX = toRect.left + toRect.width / 2 + targetOffsetX;
+      const endY = toRect.top + toRect.height / 2 + targetOffsetY;
+
+      const spinDirection = Math.random() < 0.5 ? 1 : -1;
+      const spinDeg = spinDirection * Math.round(120 + Math.random() * 140);
+
+      let keyframes;
+      let easingCurve = 'cubic-bezier(0.22, 1, 0.36, 1)';
+
+      if (mode === 'throw') {
+        const midX = startX + (endX - startX) * 0.45 + (Math.random() * 14 - 7);
+        const midY = startY + (endY - startY) * 0.45 - 46;
+
+        keyframes = [
+          {
+            offset: 0,
+            opacity: 1,
+            transform: `translate3d(${startX}px, ${startY}px, 0) scale(${startScale}) rotateZ(0deg) rotateX(0deg)`,
+            filter: 'drop-shadow(0 4px 5px rgba(0,0,0,0.45))'
+          },
+          {
+            offset: 0.45,
+            opacity: 1,
+            transform: `translate3d(${midX}px, ${midY}px, 0) scale(1.22) rotateZ(${Math.round(spinDeg * 0.55)}deg) rotateX(25deg)`,
+            filter: 'drop-shadow(0 18px 14px rgba(0,0,0,0.55))'
+          },
+          {
+            offset: 0.86,
+            opacity: 1,
+            transform: `translate3d(${endX}px, ${endY - 3}px, 0) scale(${endScale * 1.04}) rotateZ(${Math.round(spinDeg * 0.96)}deg) rotateX(6deg)`,
+            filter: 'drop-shadow(0 5px 6px rgba(0,0,0,0.65))'
+          },
+          {
+            offset: 1,
+            opacity: 1,
+            transform: `translate3d(${endX}px, ${endY}px, 0) scale(${endScale}) rotateZ(${spinDeg}deg) rotateX(0deg)`,
+            filter: 'drop-shadow(0 3px 4px rgba(0,0,0,0.7))'
+          }
+        ];
+        easingCurve = 'cubic-bezier(0.22, 1, 0.36, 1)';
+      } else if (mode === 'pullback') {
+        const midX = startX + (endX - startX) * 0.5;
+        const midY = Math.min(startY, endY) - 28;
+        keyframes = [
+          {
+            offset: 0,
+            opacity: 1,
+            transform: `translate3d(${startX}px, ${startY}px, 0) scale(0.92) rotateZ(0deg) rotateX(0deg)`,
+            filter: 'drop-shadow(0 4px 5px rgba(0,0,0,0.6))'
+          },
+          {
+            offset: 0.5,
+            opacity: 1,
+            transform: `translate3d(${midX}px, ${midY}px, 0) scale(1.12) rotateZ(${Math.round(-spinDeg * 0.5)}deg) rotateX(18deg)`,
+            filter: 'drop-shadow(0 14px 12px rgba(0,0,0,0.5))'
+          },
+          {
+            offset: 1,
+            opacity: 0.95,
+            transform: `translate3d(${endX}px, ${endY}px, 0) scale(1) rotateZ(${-spinDeg}deg) rotateX(0deg)`,
+            filter: 'drop-shadow(0 4px 6px rgba(0,0,0,0.55))'
+          }
+        ];
+        easingCurve = 'cubic-bezier(0.4, 0, 0.2, 1)';
+      } else {
+        const midX = startX + (endX - startX) * 0.5 + (Math.random() * 12 - 6);
+        const midY = startY + (endY - startY) * 0.5 - 18;
+        keyframes = [
+          {
+            offset: 0,
+            opacity: 1,
+            transform: `translate3d(${startX}px, ${startY}px, 0) scale(${startScale}) rotateZ(0deg) rotateX(0deg)`,
+            filter: 'drop-shadow(0 4px 6px rgba(0,0,0,0.55))'
+          },
+          {
+            offset: 0.5,
+            opacity: 1,
+            transform: `translate3d(${midX}px, ${midY}px, 0) scale(${(startScale + endScale) * 0.56}) rotateZ(${Math.round(spinDeg * 0.5)}deg) rotateX(16deg)`,
+            filter: 'drop-shadow(0 12px 10px rgba(0,0,0,0.5))'
+          },
+          {
+            offset: 1,
+            opacity: 0.92,
+            transform: `translate3d(${endX}px, ${endY}px, 0) scale(${endScale}) rotateZ(${spinDeg}deg) rotateX(0deg)`,
+            filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.7))'
+          }
+        ];
+        easingCurve = 'cubic-bezier(0.42, 0, 0.2, 1)';
+      }
+
+      if (clone.animate) {
+        const anim = clone.animate(keyframes, {
+          duration,
+          delay,
+          easing: easingCurve,
+          fill: 'forwards'
+        });
+        anim.onfinish = () => {
+          clone.remove();
+          if (onLand) onLand();
+        };
+      } else {
+        setTimeout(() => {
+          clone.remove();
+          if (onLand) onLand();
+        }, delay + duration);
+      }
+    }
+
+    const activeTickers = new Map();
+    function animateNumberTicker(el, fromVal, toVal, duration = 520) {
+      if (!el) return;
+      if (activeTickers.has(el)) {
+        cancelAnimationFrame(activeTickers.get(el));
+      }
+      const start = performance.now();
+      const diff = toVal - fromVal;
+      if (diff === 0) {
+        el.textContent = formatMoney(toVal);
+        return;
+      }
+
+      function step(now) {
+        const t = Math.min(1, (now - start) / duration);
+        const eased = 1 - Math.pow(1 - t, 3);
+        const current = Math.round(fromVal + diff * eased);
+        el.textContent = formatMoney(current);
+        if (t < 1) {
+          activeTickers.set(el, requestAnimationFrame(step));
+        } else {
+          el.textContent = formatMoney(toVal);
+          activeTickers.delete(el);
+        }
+      }
+      activeTickers.set(el, requestAnimationFrame(step));
+    }
+
+    function triggerStackMicroBounce() {
+      const stackEl = document.getElementById('stagingChipsStack');
+      if (!stackEl) return;
+      stackEl.classList.remove('micro-bounce');
+      void stackEl.offsetWidth;
+      stackEl.classList.add('micro-bounce');
+    }
+
+    /* ==========================================================
+       4. LOBBY, NETWORKING & POKER STATE MACHINE
+       ========================================================== */
+    const STORAGE_KEY = 'felt_poker_state_v3';
+    const DEVICE_ID_KEY = 'felt_device_id_v3';
+    const STREETS = ['Pre-Flop', 'Flop', 'Turn', 'River', 'Showdown'];
+
+    const STACK_PRESETS = [1000, 5000, 10000];
+    const BLINDS_PRESETS = [
+      { sb: 5, bb: 10 },
+      { sb: 10, bb: 20 },
+      { sb: 25, bb: 50 }
+    ];
+    let stackPresetIndex = 0;
+    let blindsPresetIndex = 0;
+
+    let myDeviceId = localStorage.getItem(DEVICE_ID_KEY);
+    if (!myDeviceId) {
+      myDeviceId = 'dev_' + Math.random().toString(36).slice(2, 10);
+      localStorage.setItem(DEVICE_ID_KEY, myDeviceId);
+    }
+
+    let netRole = 'host';
+    let wsConnection = null;
+    let roomCode = 'MAIN';
+    let undoHistory = [];
+
+    let state = {
+      status: 'LOBBY',
+      roomCode: 'MAIN',
+      startingStack: 1000,
+      smallBlind: 5,
+      bigBlind: 10,
+      handNumber: 1,
+      streetIndex: 0,
+      dealerIdx: 0,
+      sbIdx: 0,
+      bbIdx: 1,
+      turnIdx: 0,
+      currentBet: 0,
+      minRaiseDelta: 10,
+      pots: [{ amount: 0, eligibleIds: [] }],
+      players: [
+        { id: 'host_1', name: 'Host (You)', mode: 'host', status: 'active', isSpectator: false, stack: 1000, streetBet: 0, totalCommitted: 0, folded: false, allIn: false, acted: false, lastAction: '' },
+        { id: 'local_2', name: 'Alex', mode: 'local', status: 'active', isSpectator: false, stack: 1000, streetBet: 0, totalCommitted: 0, folded: false, allIn: false, acted: false, lastAction: '' }
+      ]
+    };
+
+    let stagedChips = [];
+    let foldArmed = false;
+    let foldArmTimer = null;
+    let allInArmed = false;
+    let allInArmTimer = null;
+
+    let splitPotMode = false;
+    let selectedWinnerIds = new Set();
+    let pendingPotsQueue = [];
+    let currentPotAwardIndex = 0;
+
+    // Busted players resolution queue at end of hand
+    let bustedQueueIds = [];
+    let currentBustedPlayerId = null;
+
+    function formatMoney(n) {
+      return '$' + Math.round(Number(n) || 0).toLocaleString('en-US');
+    }
+
+    function escapeHtml(str) {
+      return String(str ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    function showToast(msg) {
+      const el = document.getElementById('minimalToast');
+      el.textContent = msg;
+      el.classList.add('show');
+      clearTimeout(el._timer);
+      el._timer = setTimeout(() => el.classList.remove('show'), 2200);
+    }
+
+    function showScreen(screenId) {
+      ['homeScreen', 'hostLobbyScreen', 'joinLobbyScreen', 'championScreen'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.classList.toggle('active', id === screenId);
+      });
+    }
+
+    function saveAndBroadcastState(eventCue = null) {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      } catch (_) {}
+      if (netRole === 'host' && wsConnection && wsConnection.readyState === WebSocket.OPEN) {
+        wsConnection.send(JSON.stringify({
+          type: 'STATE_SYNC',
+          room: state.roomCode,
+          state,
+          eventCue
+        }));
+      }
+    }
+
+    function pushUndoSnapshot() {
+      undoHistory.push(JSON.stringify(state));
+      if (undoHistory.length > 30) undoHistory.shift();
+      updateUndoCountUI();
+    }
+
+    function updateUndoCountUI() {
+      const el = document.getElementById('undoCountLabel');
+      if (el) el.textContent = String(undoHistory.length);
+    }
+
+    function undoLastAction() {
+      if (undoHistory.length === 0) {
+        showToast('No moves to undo');
+        return;
+      }
+      state = JSON.parse(undoHistory.pop());
+      stagedChips = [];
+      closeSheet('hostDrawerSheet');
+      closeSheet('awardPotSheet');
+      closeSheet('bustedModalSheet');
+      Sound.chipThrow(0.85);
+      saveAndBroadcastState();
+      renderAll();
+      updateUndoCountUI();
+      showToast('Undid last move');
+    }
+
+    /* ==========================================================
+       5. PRE-GAME WAITING LOBBY & QR CODE FLOW
+       ========================================================== */
+    async function openHostLobby() {
+      netRole = 'host';
+      state.status = 'LOBBY';
+      showScreen('hostLobbyScreen');
+      renderLobbySettingsAndRoster();
+
+      let joinUrl = `${location.origin}/?join=1&room=${state.roomCode}`;
+      try {
+        const res = await fetch('/api/lan-info');
+        const info = await res.json();
+        if (info && info.primaryIp && info.primaryIp !== '127.0.0.1') {
+          const portPart = location.port ? `:${location.port}` : `:${info.httpPort || 3000}`;
+          joinUrl = `${location.protocol}//${info.primaryIp}${portPart}/?join=1&room=${state.roomCode}`;
+        }
+      } catch (_) {}
+
+      document.getElementById('qrRoomCodeTag').textContent = `ROOM: ${state.roomCode}`;
+      document.getElementById('qrJoinUrlText').textContent = joinUrl;
+      document.getElementById('qrCodeContainer').innerHTML = OfflineQR.toSVG(joinUrl);
+
+      connectWebSocketAsHost();
+    }
+
+    function cycleStartingStack() {
+      stackPresetIndex = (stackPresetIndex + 1) % STACK_PRESETS.length;
+      state.startingStack = STACK_PRESETS[stackPresetIndex];
+      state.players.forEach(p => {
+        p.stack = state.startingStack;
+        p.isSpectator = false;
+        p.status = 'active';
+      });
+      Sound.chipThrow(1.08);
+      renderLobbySettingsAndRoster();
+      saveAndBroadcastState();
+    }
+
+    function cycleBlindsPreset() {
+      blindsPresetIndex = (blindsPresetIndex + 1) % BLINDS_PRESETS.length;
+      state.smallBlind = BLINDS_PRESETS[blindsPresetIndex].sb;
+      state.bigBlind = BLINDS_PRESETS[blindsPresetIndex].bb;
+      Sound.chipThrow(1.12);
+      renderLobbySettingsAndRoster();
+      saveAndBroadcastState();
+    }
+
+    function renderLobbySettingsAndRoster() {
+      document.getElementById('lobbyStackPillVal').textContent = formatMoney(state.startingStack);
+      document.getElementById('lobbyBlindsPillVal').textContent = `${formatMoney(state.smallBlind)} / ${formatMoney(state.bigBlind)}`;
+      document.getElementById('lobbyPlayerCount').textContent = String(state.players.length);
+
+      const list = document.getElementById('lobbyPlayersList');
+      list.innerHTML = '';
+
+      state.players.forEach((p, idx) => {
+        const row = document.createElement('div');
+        row.className = 'lobby-player-row';
+
+        const badgeClass = p.mode === 'host' ? 'host-tag' : p.mode === 'wifi' ? 'wifi-tag' : 'local-tag';
+        const badgeText = p.mode === 'host' ? 'Host' : p.mode === 'wifi' ? 'Wi-Fi' : 'On My Phone';
+
+        row.innerHTML = `
+          <span class="lobby-seat-num">#${idx + 1}</span>
+          <input type="text" class="lobby-player-input" value="${escapeHtml(p.name)}" placeholder="Player ${idx + 1}" oninput="updateLobbyPlayerName(${idx}, this.value)" />
+          <span class="lobby-mode-tag ${badgeClass}">${badgeText}</span>
+          ${idx > 0 ? `<button class="lobby-remove-btn" onclick="removeLobbyPlayer(${idx})">✕</button>` : ''}
+        `;
+        list.appendChild(row);
+      });
+
+      const startBtn = document.getElementById('startGameNightBtn');
+      startBtn.disabled = state.players.length < 2;
+    }
+
+    function updateLobbyPlayerName(idx, val) {
+      if (!state.players[idx]) return;
+      state.players[idx].name = val;
+      saveAndBroadcastState();
+    }
+
+    function addLocalLobbyPlayer() {
+      if (state.players.length >= 10) {
+        showToast('Max 10 players at table');
+        return;
+      }
+      const nextNum = state.players.length + 1;
+      state.players.push({
+        id: 'local_' + Date.now().toString(36) + '_' + nextNum,
+        name: `Player ${nextNum}`,
+        mode: 'local',
+        status: 'active',
+        isSpectator: false,
+        stack: state.startingStack,
+        streetBet: 0,
+        totalCommitted: 0,
+        folded: false,
+        allIn: false,
+        acted: false,
+        lastAction: ''
+      });
+      Sound.chipThrow(1.1);
+      renderLobbySettingsAndRoster();
+      saveAndBroadcastState();
+    }
+
+    function removeLobbyPlayer(idx) {
+      if (idx <= 0) return;
+      state.players.splice(idx, 1);
+      renderLobbySettingsAndRoster();
+      saveAndBroadcastState();
+    }
+
+    function hostStartGameNight() {
+      if (state.players.length < 2) {
+        showToast('Add at least 2 players to start');
+        return;
+      }
+      state.players.forEach((p, idx) => {
+        p.name = (p.name || '').trim() || `Player ${idx + 1}`;
+        p.stack = state.startingStack;
+        p.isSpectator = false;
+        p.status = 'active';
+      });
+      state.status = 'PLAYING';
+      state.handNumber = 0;
+      state.dealerIdx = 0;
+      undoHistory = [];
+      showScreen(null);
+      startNewHand(false);
+    }
+
+    function resetTableNewGame() {
+      state.players.forEach(p => {
+        p.stack = state.startingStack;
+        p.isSpectator = false;
+        p.status = 'active';
+        p.folded = false;
+        p.allIn = false;
+        p.streetBet = 0;
+        p.totalCommitted = 0;
+        p.lastAction = '';
+      });
+      state.status = 'PLAYING';
+      state.handNumber = 0;
+      state.dealerIdx = 0;
+      undoHistory = [];
+      showScreen(null);
+      Sound.winnerSweep();
+      startNewHand(false);
+    }
+
+    function openJoinLobby() {
+      netRole = 'client';
+      showScreen('joinLobbyScreen');
+      const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+      document.getElementById('clientHostUrlInput').value = `${proto}//${location.host}`;
+    }
+
+    function submitClientJoinLobby() {
+      const nameInput = document.getElementById('clientJoinNameInput');
+      const name = (nameInput.value || '').trim();
+      if (!name) {
+        showToast('Please enter your name');
+        nameInput.focus();
+        return;
+      }
+      const wsUrl = (document.getElementById('clientHostUrlInput').value || '').trim();
+      connectWebSocketAsClient(wsUrl, name);
+    }
+
+    function sendClientRebuyRequest() {
+      if (wsConnection && wsConnection.readyState === WebSocket.OPEN) {
+        const me = state.players.find(p => p.id === myDeviceId);
+        wsConnection.send(JSON.stringify({
+          type: 'REBUY_REQUEST',
+          room: state.roomCode,
+          playerId: myDeviceId,
+          name: me ? me.name : 'Spectator'
+        }));
+        Sound.chipThrow(1.1);
+        showToast('Sent Rebuy request to Host!');
+      } else {
+        showToast('Ask the Table Host to tap 👑 -> Manage Stacks');
+      }
+    }
+
+    function connectWebSocketAsHost() {
+      try {
+        const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${proto}//${location.host}`;
+        if (wsConnection && wsConnection.readyState === WebSocket.OPEN) {
+          wsConnection.send(JSON.stringify({ type: 'HOST_REGISTER', room: state.roomCode, state }));
+          return;
+        }
+        wsConnection = new WebSocket(wsUrl);
+        wsConnection.onopen = () => {
+          wsConnection.send(JSON.stringify({ type: 'HOST_REGISTER', room: state.roomCode, state }));
+        };
+        wsConnection.onmessage = (ev) => {
+          try {
+            const msg = JSON.parse(ev.data);
+            if (msg.type === 'LOBBY_JOIN' && msg.name) {
+              const existing = state.players.find(p => p.id === msg.playerId);
+              if (existing) {
+                existing.name = msg.name;
+              } else if (state.players.length < 10) {
+                state.players.push({
+                  id: msg.playerId,
+                  name: msg.name,
+                  mode: 'wifi',
+                  status: 'active',
+                  isSpectator: false,
+                  stack: state.startingStack,
+                  streetBet: 0,
+                  totalCommitted: 0,
+                  folded: state.status === 'PLAYING',
+                  allIn: false,
+                  acted: state.status === 'PLAYING',
+                  lastAction: state.status === 'PLAYING' ? 'NEXT HAND' : ''
+                });
+              }
+              Sound.chipThrow(1.2);
+              showToast(`${msg.name} joined via Wi-Fi!`);
+              renderLobbySettingsAndRoster();
+              renderAll();
+              saveAndBroadcastState();
+            } else if (msg.type === 'PLAYER_ACTION' && netRole === 'host' && msg.payload) {
+              handleRemotePlayerAction(msg.playerId, msg.payload);
+            } else if (msg.type === 'REBUY_REQUEST' && netRole === 'host') {
+              Sound.chipThrow(1.25);
+              showToast(`👋 ${msg.name || 'Player'} requested a Rebuy!`);
+            } else if (msg.type === 'REQUEST_STATE' && netRole === 'host') {
+              saveAndBroadcastState();
+            }
+          } catch (_) {}
+        };
+      } catch (_) {}
+    }
+
+    function connectWebSocketAsClient(wsUrl, playerName) {
+      try {
+        if (wsConnection) wsConnection.close();
+        wsConnection = new WebSocket(wsUrl);
+        wsConnection.onopen = () => {
+          wsConnection.send(JSON.stringify({
+            type: 'LOBBY_JOIN',
+            room: roomCode,
+            playerId: myDeviceId,
+            name: playerName
+          }));
+          document.getElementById('clientWaitingBox').style.display = 'block';
+          document.getElementById('clientJoinSubmitBtn').textContent = 'UPDATE NAME';
+          Sound.chipThrow(1.15);
+        };
+        wsConnection.onmessage = (ev) => {
+          try {
+            const msg = JSON.parse(ev.data);
+            if (msg.type === 'STATE_SYNC' && msg.state) {
+              state = msg.state;
+              if (state.status === 'PLAYING') {
+                showScreen(null);
+              } else if (state.status === 'CHAMPION') {
+                const champ = state.players.find(p => !p.isSpectator && p.stack > 0) || state.players[0];
+                showChampionCelebration(champ);
+              }
+              if (msg.eventCue === 'POT_GATHER') Sound.potGather();
+              else if (msg.eventCue === 'CHIP_THROW') Sound.chipThrow(1.05);
+              else if (msg.eventCue === 'CHECK') Sound.woodCheck();
+              else if (msg.eventCue === 'FOLD') Sound.foldSwoosh();
+              else if (msg.eventCue === 'ALL_IN') Sound.allInCascade();
+              else if (msg.eventCue === 'WINNER') Sound.winnerSweep();
+              else if (msg.eventCue === 'SPECTATOR_OUT') Sound.spectatorEliminated();
+              renderAll();
+            }
+          } catch (_) {}
+        };
+        wsConnection.onerror = () => {
+          showToast('Could not connect to Host');
+        };
+      } catch (_) {
+        showToast('Invalid Host address');
+      }
+    }
+
+    function handleRemotePlayerAction(playerId, payload) {
+      const currentActor = state.players[state.turnIdx];
+      if (!currentActor || currentActor.id !== playerId) return;
+      if (payload.type === 'FOLD') executeFold();
+      else if (payload.type === 'CHECK_CALL') executeCheckOrCall();
+      else if (payload.type === 'RAISE_TO') executeBetOrRaiseTo(payload.targetTotalBet);
+      else if (payload.type === 'ALL_IN') executeBetOrRaiseTo(currentActor.streetBet + currentActor.stack);
+    }
+
+    /* ==========================================================
+       6. BUST-OUT ($0 STACK) MODAL, REBUY CASCADE & SPECTATOR MODE
+       ========================================================== */
+    /**
+     * Triggered after a hand's pot sweep finishes.
+     * Scans all non-spectator players for stack === 0.
+     * If any are found, pauses next hand setup and opens the Host Decision Modal for each busted player.
+     */
+    function checkBustedPlayersBeforeNextHand() {
+      // Clear any remaining street bets first
+      state.players.forEach(p => {
+        p.streetBet = 0;
+        p.totalCommitted = 0;
+        p.allIn = false;
+      });
+      state.pots = [{ amount: 0, eligibleIds: [] }];
+      renderAll();
+
+      const bustedPlayers = state.players.filter(p => !p.isSpectator && p.stack <= 0);
+      if (bustedPlayers.length === 0) {
+        proceedAfterBustResolution();
+        return;
+      }
+
+      bustedQueueIds = bustedPlayers.map(p => p.id);
+      openNextBustedPlayerModal();
+    }
+
+    function openNextBustedPlayerModal() {
+      if (bustedQueueIds.length === 0) {
+        closeSheet('bustedModalSheet');
+        proceedAfterBustResolution();
+        return;
+      }
+
+      currentBustedPlayerId = bustedQueueIds.shift();
+      const player = state.players.find(p => p.id === currentBustedPlayerId);
+      if (!player || player.isSpectator || player.stack > 0) {
+        openNextBustedPlayerModal();
+        return;
+      }
+
+      const fullStack = state.startingStack || 1000;
+      const halfStack = Math.max(state.bigBlind * 2, Math.round(fullStack / 2));
+
+      document.getElementById('bustedModalHeader').textContent = `💸 ${player.name} is Busted ($0)`;
+      document.getElementById('bustedFullStackVal').textContent = formatMoney(fullStack);
+      document.getElementById('bustedHalfStackVal').textContent = formatMoney(halfStack);
+      document.getElementById('bustedCustomInput').value = String(fullStack);
+
+      openSheet('bustedModalSheet');
+    }
+
+    function resolveBustedPlayerRebuy(mode) {
+      const player = state.players.find(p => p.id === currentBustedPlayerId);
+      if (!player) {
+        openNextBustedPlayerModal();
+        return;
+      }
+
+      const fullStack = state.startingStack || 1000;
+      const halfStack = Math.max(state.bigBlind * 2, Math.round(fullStack / 2));
+      let addAmount = fullStack;
+
+      if (mode === 'half') {
+        addAmount = halfStack;
+      } else if (mode === 'custom') {
+        const raw = parseInt(document.getElementById('bustedCustomInput').value, 10);
+        addAmount = Math.max(state.bigBlind * 2, isNaN(raw) ? fullStack : raw);
+      }
+
+      pushUndoSnapshot();
+      const prevStack = player.stack;
+      player.stack += addAmount;
+      player.isSpectator = false;
+      player.status = 'active';
+      player.lastAction = `REBUY ${formatMoney(addAmount)}`;
+
+      closeSheet('bustedModalSheet');
+      saveAndBroadcastState('WINNER');
+      renderAll();
+
+      // Smooth chip-cascade animation from top of screen into their seat badge + chip-rake sound
+      animateTopRebuyCascade(player.id, addAmount, prevStack, player.stack);
+      Sound.winnerSweep();
+      showToast(`${player.name} rebought ${formatMoney(addAmount)}`);
+
+      setTimeout(() => {
+        openNextBustedPlayerModal();
+      }, 750);
+    }
+
+    function resolveBustedPlayerSpectator() {
+      const player = state.players.find(p => p.id === currentBustedPlayerId);
+      if (!player) {
+        openNextBustedPlayerModal();
+        return;
+      }
+
+      pushUndoSnapshot();
+      player.stack = 0;
+      player.isSpectator = true;
+      player.status = 'spectator';
+      player.folded = true;
+      player.allIn = false;
+      player.lastAction = 'SPECTATOR';
+
+      closeSheet('bustedModalSheet');
+      Sound.spectatorEliminated();
+      saveAndBroadcastState('SPECTATOR_OUT');
+      renderAll();
+      showToast(`👻 ${player.name} is now Spectating`);
+
+      setTimeout(() => {
+        openNextBustedPlayerModal();
+      }, 420);
+    }
+
+    function proceedAfterBustResolution() {
+      const activePlayers = state.players.filter(p => !p.isSpectator && p.stack > 0);
+      // Last Player Standing -> Grand "🏆 TABLE CHAMPION!" Celebration Screen
+      if (activePlayers.length === 1 && state.players.length >= 2) {
+        const champion = activePlayers[0];
+        state.status = 'CHAMPION';
+        saveAndBroadcastState('WINNER');
+        showChampionCelebration(champion);
+        return;
+      }
+
+      if (activePlayers.length < 2) {
+        showToast('Need at least 2 active players — Buy back in via Host Controls');
+        return;
+      }
+
+      startNewHand(true);
+    }
+
+    function showChampionCelebration(champion) {
+      if (!champion) return;
+      document.getElementById('championNameTitle').textContent = champion.name;
+      document.getElementById('championStackLabel').textContent = `${formatMoney(champion.stack)} Total Chips`;
+      showScreen('championScreen');
+      Sound.winnerSweep();
+    }
+
+    /**
+     * Smooth 60fps Chip-Cascade Animation from Top of Screen into Player's Seat Badge
+     */
+    function animateTopRebuyCascade(playerId, addedAmount, fromStack, toStack) {
+      const seatEl = document.querySelector(`.seat-badge[data-player-id="${playerId}"]`);
+      if (!seatEl) return;
+
+      seatEl.classList.add('winner-glow');
+      setTimeout(() => seatEl.classList.remove('winner-glow'), 1000);
+
+      const stackLabelEl = seatEl.querySelector('.seat-stack');
+      if (stackLabelEl) {
+        stackLabelEl.textContent = formatMoney(fromStack);
+        setTimeout(() => {
+          animateNumberTicker(stackLabelEl, fromStack, toStack, 580);
+        }, 140);
+      }
+
+      const toRect = seatEl.getBoundingClientRect();
+      const topOriginRect = {
+        left: window.innerWidth / 2 - 20,
+        top: 16,
+        width: 40,
+        height: 40
+      };
+
+      const chips = decomposeAmountToChips(addedAmount).slice(0, 9);
+      chips.forEach((denom, i) => {
+        animateChipFlight({
+          denom,
+          fromRect: topOriginRect,
+          toRect,
+          targetOffsetX: Math.round(Math.random() * 10 - 5),
+          targetOffsetY: Math.round(Math.random() * 6 - 3),
+          delay: i * 35,
+          duration: 420,
+          mode: 'sweep',
+          startScale: 0.95,
+          endScale: 0.68,
+          onLand: () => {
+            Sound.chipThrow(0.98 + (i % 4) * 0.05, i * 28);
+          }
+        });
+      });
+    }
+
+    /* ==========================================================
+       7. ROCK-SOLID TEXAS HOLD'EM BETTING & SIDE-POT ENGINE
+       ========================================================== */
+    function recalculatePots() {
+      const contributors = state.players.filter(p => p.totalCommitted > 0);
+      if (contributors.length === 0) {
+        state.pots = [{ amount: 0, eligibleIds: state.players.filter(p => !p.folded && !p.isSpectator).map(p => p.id) }];
+        return;
+      }
+
+      const allInCaps = contributors
+        .filter(p => p.allIn)
+        .map(p => p.totalCommitted)
+        .sort((a, b) => a - b);
+      const maxCommitted = Math.max(...contributors.map(p => p.totalCommitted));
+      const levels = [...new Set([...allInCaps, maxCommitted])].sort((a, b) => a - b);
+
+      const pots = [];
+      let prevCap = 0;
+
+      for (const cap of levels) {
+        if (cap <= prevCap) continue;
+        let sliceAmount = 0;
+        const eligibleIds = [];
+
+        for (const p of contributors) {
+          const contrib = Math.max(0, Math.min(p.totalCommitted, cap) - prevCap);
+          sliceAmount += contrib;
+          if (!p.folded && !p.isSpectator && p.totalCommitted >= cap) {
+            eligibleIds.push(p.id);
+          }
+        }
+
+        if (sliceAmount > 0) {
+          const prevPot = pots[pots.length - 1];
+          if (
+            prevPot &&
+            prevPot.eligibleIds.length === eligibleIds.length &&
+            prevPot.eligibleIds.every(id => eligibleIds.includes(id))
+          ) {
+            prevPot.amount += sliceAmount;
+          } else {
+            pots.push({ amount: sliceAmount, eligibleIds });
+          }
+        }
+        prevCap = cap;
+      }
+
+      state.pots = pots.length > 0 ? pots : [{ amount: 0, eligibleIds: [] }];
+    }
+
+    function getTotalPot() {
+      return state.players.reduce((sum, p) => sum + (p.totalCommitted || 0), 0);
+    }
+
+    function getActiveNonFoldedPlayers() {
+      return state.players.filter(p => !p.folded && !p.isSpectator);
+    }
+
+    function getActiveCanActPlayers() {
+      return state.players.filter(p => !p.folded && !p.isSpectator && !p.allIn && p.stack > 0);
+    }
+
+    function findNextSeatIndex(fromIdx, predicate) {
+      const n = state.players.length;
+      for (let step = 1; step <= n; step++) {
+        const idx = (fromIdx + step) % n;
+        if (predicate(state.players[idx], idx)) return idx;
+      }
+      return -1;
+    }
+
+    function commitChips(player, amount) {
+      const actual = Math.max(0, Math.min(player.stack, Math.round(amount)));
+      player.stack -= actual;
+      player.streetBet += actual;
+      player.totalCommitted += actual;
+      if (player.stack === 0) {
+        player.allIn = true;
+      }
+      recalculatePots();
+      return actual;
+    }
+
+    function startNewHand(rotateDealer = true) {
+      const eligiblePlayers = state.players.filter(p => !p.isSpectator && p.stack > 0);
+      if (eligiblePlayers.length === 1 && state.players.length >= 2) {
+        state.status = 'CHAMPION';
+        saveAndBroadcastState('WINNER');
+        showChampionCelebration(eligiblePlayers[0]);
+        return;
+      }
+      if (eligiblePlayers.length < 2) {
+        showToast('Need at least 2 active players with chips');
+        return;
+      }
+
+      // Rotate Dealer (completely excluding Spectators!)
+      if (rotateDealer) {
+        state.handNumber += 1;
+        const nextD = findNextSeatIndex(state.dealerIdx, p => !p.isSpectator && p.stack > 0);
+        if (nextD !== -1) state.dealerIdx = nextD;
+      } else if (state.players[state.dealerIdx]?.isSpectator || state.players[state.dealerIdx]?.stack <= 0) {
+        const nextD = findNextSeatIndex(state.dealerIdx, p => !p.isSpectator && p.stack > 0);
+        if (nextD !== -1) state.dealerIdx = nextD;
+      }
+
+      state.streetIndex = 0;
+      state.currentBet = 0;
+      state.minRaiseDelta = state.bigBlind;
+      stagedChips = [];
+      resetSafetyLocks();
+
+      state.players.forEach(p => {
+        if (p.isSpectator || p.stack <= 0) {
+          p.folded = true;
+          p.allIn = false;
+          p.acted = true;
+          p.streetBet = 0;
+          p.totalCommitted = 0;
+          p.lastAction = 'SPECTATOR';
+        } else {
+          p.folded = false;
+          p.allIn = false;
+          p.acted = false; // Preserves Big Blind Option!
+          p.streetBet = 0;
+          p.totalCommitted = 0;
+          p.lastAction = '';
+        }
+      });
+
+      const activeCount = state.players.filter(p => !p.folded && !p.isSpectator).length;
+
+      if (activeCount === 2) {
+        state.sbIdx = state.dealerIdx;
+        state.bbIdx = findNextSeatIndex(state.dealerIdx, p => !p.folded && !p.isSpectator);
+      } else {
+        state.sbIdx = findNextSeatIndex(state.dealerIdx, p => !p.folded && !p.isSpectator);
+        state.bbIdx = findNextSeatIndex(state.sbIdx, p => !p.folded && !p.isSpectator);
+      }
+
+      const sbPlayer = state.players[state.sbIdx];
+      const bbPlayer = state.players[state.bbIdx];
+
+      commitChips(sbPlayer, state.smallBlind);
+      sbPlayer.lastAction = sbPlayer.allIn ? 'ALL-IN' : `SB ${formatMoney(sbPlayer.streetBet)}`;
+      sbPlayer.acted = false;
+
+      commitChips(bbPlayer, state.bigBlind);
+      bbPlayer.lastAction = bbPlayer.allIn ? 'ALL-IN' : `BB ${formatMoney(bbPlayer.streetBet)}`;
+      bbPlayer.acted = false;
+
+      state.currentBet = Math.max(sbPlayer.streetBet, bbPlayer.streetBet);
+      state.minRaiseDelta = state.bigBlind;
+
+      const utgIdx = findNextSeatIndex(state.bbIdx, p => !p.folded && !p.isSpectator && !p.allIn);
+      state.turnIdx = utgIdx !== -1 ? utgIdx : state.bbIdx;
+
+      saveAndBroadcastState('CHIP_THROW');
+      renderAll();
+    }
+
+    function advanceTurnOrStreet(soundCue = 'CHIP_THROW') {
+      recalculatePots();
+      stagedChips = [];
+      resetSafetyLocks();
+
+      const nonFolded = getActiveNonFoldedPlayers();
+      // Everyone else folded -> sole remaining player wins the pot!
+      if (nonFolded.length === 1) {
+        const winner = nonFolded[0];
+        const totalWon = getTotalPot();
+        const prevStack = winner.stack;
+        winner.stack += totalWon;
+        winner.lastAction = `WON ${formatMoney(totalWon)}`;
+        saveAndBroadcastState('WINNER');
+        renderAll();
+        animateWinnerSweep(winner.id, totalWon, prevStack, winner.stack);
+        Sound.winnerSweep();
+        showToast(`${winner.name} wins ${formatMoney(totalWon)}`);
+        setTimeout(() => checkBustedPlayersBeforeNextHand(), 1350);
+        return;
+      }
+
+      const canAct = getActiveCanActPlayers();
+      const streetComplete = canAct.every(p => p.acted && p.streetBet === state.currentBet);
+
+      if (streetComplete || canAct.length === 0) {
+        const bettingSnapshots = state.players
+          .filter(p => p.streetBet > 0)
+          .map(p => ({ id: p.id, amount: p.streetBet }));
+
+        animateStreetBetsToCenterPot(bettingSnapshots, () => {
+          if (state.streetIndex < 3 && canAct.length >= 2) {
+            state.streetIndex += 1;
+            state.currentBet = 0;
+            state.minRaiseDelta = state.bigBlind;
+            state.players.forEach(p => {
+              p.streetBet = 0;
+              p.acted = false;
+              if (!p.folded && !p.isSpectator && !p.allIn) p.lastAction = '';
+            });
+
+            const firstPostFlop = findNextSeatIndex(state.dealerIdx, p => !p.folded && !p.isSpectator && !p.allIn);
+            state.turnIdx = firstPostFlop !== -1 ? firstPostFlop : 0;
+
+            saveAndBroadcastState('POT_GATHER');
+            renderAll();
+            showToast(STREETS[state.streetIndex]);
+          } else {
+            state.streetIndex = 4;
+            state.players.forEach(p => { p.streetBet = 0; });
+            saveAndBroadcastState('POT_GATHER');
+            renderAll();
+            openAwardPotModal(true);
+          }
+        });
+        return;
+      }
+
+      const nextIdx = findNextSeatIndex(state.turnIdx, p => !p.folded && !p.isSpectator && !p.allIn && (!p.acted || p.streetBet < state.currentBet));
+      if (nextIdx !== -1) {
+        state.turnIdx = nextIdx;
+      }
+      saveAndBroadcastState(soundCue);
+      renderAll();
+    }
+
+    /* ==========================================================
+       8. 60FPS STAGGERED CHIP TOSS, PULL-BACK & POT SWEEP
+       ========================================================== */
+    function isMyTurnToAct() {
+      if (state.status !== 'PLAYING' || state.streetIndex === 4) return false;
+      const actor = state.players[state.turnIdx];
+      if (!actor || actor.folded || actor.isSpectator || actor.allIn) return false;
+      if (netRole === 'client') {
+        return actor.id === myDeviceId;
+      }
+      return true;
+    }
+
+    function getStagedDeltaSum() {
+      return stagedChips.reduce((sum, item) => sum + item.denom, 0);
+    }
+
+    function decomposeAmountToChips(amount) {
+      let rem = Math.max(0, Math.round(amount));
+      const out = [];
+      const vals = [1000, 500, 100, 25, 5, 1];
+      for (const v of vals) {
+        while (rem >= v && out.length < 22) {
+          out.push(v);
+          rem -= v;
+        }
+      }
+      return out;
+    }
+
+    function findRackChipElement(denom) {
+      return document.querySelector(`#chipRackArc .casino-chip[data-denom="${denom}"]`) ||
+             document.getElementById('chipRackArc');
+    }
+
+    function throwChipFromRack(denom, sourceEl) {
+      if (!isMyTurnToAct()) return;
+      const actor = state.players[state.turnIdx];
+      const currentStaged = getStagedDeltaSum();
+      if (currentStaged + denom > actor.stack) {
+        showToast('Exceeds remaining stack');
+        return;
+      }
+
+      const stackIndex = stagedChips.length;
+      const scatterX = Math.round((Math.random() * 12) - 6);
+      const rotDeg = Math.round((Math.random() * 40) - 20);
+      const chipEntry = { denom, scatterX, rotDeg, landing: true };
+      stagedChips.push(chipEntry);
+
+      renderStagingPileAndDock();
+
+      const targetEl = document.getElementById('stagingChipsStack');
+      const sEl = sourceEl || findRackChipElement(denom);
+      if (sEl && targetEl) {
+        const sRect = sEl.getBoundingClientRect();
+        const tRect = targetEl.getBoundingClientRect();
+        const visibleSlotIndex = Math.min(stackIndex, 9);
+
+        animateChipFlight({
+          denom,
+          fromRect: sRect,
+          toRect: tRect,
+          targetOffsetX: scatterX,
+          targetOffsetY: -visibleSlotIndex * 4,
+          delay: 0,
+          duration: 340,
+          mode: 'throw',
+          onLand: () => {
+            chipEntry.landing = false;
+            Sound.chipThrow(1 + Math.min(0.32, denom / 1600), stackIndex * 28);
+            renderStagingPileOnly();
+            triggerStackMicroBounce();
+          }
+        });
+      } else {
+        chipEntry.landing = false;
+        Sound.chipThrow(1, stackIndex * 28);
+        renderStagingPileOnly();
+      }
+    }
+
+    function launchStaggeredMultiChipToss(denomList, fallbackOriginEl = null) {
+      const targetEl = document.getElementById('stagingChipsStack');
+      const tRect = targetEl ? targetEl.getBoundingClientRect() : null;
+
+      stagedChips = [];
+      const entries = denomList.map((denom) => ({
+        denom,
+        scatterX: Math.round((Math.random() * 12) - 6),
+        rotDeg: Math.round((Math.random() * 44) - 22),
+        landing: true
+      }));
+      stagedChips = entries;
+      renderStagingPileAndDock();
+
+      entries.forEach((entry, idx) => {
+        const rackChipEl = findRackChipElement(entry.denom) || fallbackOriginEl;
+        const fromRect = rackChipEl ? rackChipEl.getBoundingClientRect() : tRect;
+        const visibleSlotIndex = Math.min(idx, 9);
+
+        animateChipFlight({
+          denom: entry.denom,
+          fromRect,
+          toRect: tRect,
+          targetOffsetX: entry.scatterX,
+          targetOffsetY: -visibleSlotIndex * 4,
+          delay: idx * 35,
+          duration: 350,
+          mode: 'throw',
+          onLand: () => {
+            entry.landing = false;
+            Sound.chipThrow(0.98 + Math.min(0.28, entry.denom / 1800), idx * 32);
+            renderStagingPileOnly();
+            triggerStackMicroBounce();
+          }
+        });
+      });
+    }
+
+    function pullBackTopStagedChip() {
+      if (!isMyTurnToAct() || stagedChips.length === 0) return;
+
+      const topIndex = stagedChips.length - 1;
+      const removedEntry = stagedChips.pop();
+      const stackEl = document.getElementById('stagingChipsStack');
+      const rackSlotEl = findRackChipElement(removedEntry.denom);
+
+      renderStagingPileAndDock();
+
+      if (stackEl && rackSlotEl) {
+        const sRect = stackEl.getBoundingClientRect();
+        const rRect = rackSlotEl.getBoundingClientRect();
+        const visibleSlotIndex = Math.min(topIndex, 9);
+
+        const adjustedFromRect = {
+          left: sRect.left + removedEntry.scatterX,
+          top: sRect.top - visibleSlotIndex * 4,
+          width: sRect.width,
+          height: sRect.height
+        };
+
+        animateChipFlight({
+          denom: removedEntry.denom,
+          fromRect: adjustedFromRect,
+          toRect: rRect,
+          delay: 0,
+          duration: 260,
+          mode: 'pullback',
+          onLand: () => {
+            Sound.chipThrow(0.84, -40);
+          }
+        });
+      } else {
+        Sound.chipThrow(0.84, -40);
+      }
+    }
+
+    function clearStagedChipsAnimated() {
+      if (!isMyTurnToAct() || stagedChips.length === 0) return;
+      const copy = stagedChips.slice().reverse();
+      stagedChips = [];
+      renderStagingPileAndDock();
+
+      const stackEl = document.getElementById('stagingChipsStack');
+      if (!stackEl) return;
+      const sRect = stackEl.getBoundingClientRect();
+
+      copy.slice(0, 6).forEach((entry, i) => {
+        const rackSlotEl = findRackChipElement(entry.denom);
+        if (!rackSlotEl) return;
+        animateChipFlight({
+          denom: entry.denom,
+          fromRect: sRect,
+          toRect: rackSlotEl.getBoundingClientRect(),
+          delay: i * 25,
+          duration: 260,
+          mode: 'pullback',
+          onLand: () => {
+            Sound.chipThrow(0.84, -i * 20);
+          }
+        });
+      });
+    }
+
+    function getMinRaiseTargetTotal(actor) {
+      const maxTotalBet = actor.streetBet + actor.stack;
+      const minTarget = state.currentBet === 0
+        ? Math.min(maxTotalBet, state.bigBlind)
+        : Math.min(maxTotalBet, state.currentBet + state.minRaiseDelta);
+      return { minTarget, maxTotalBet };
+    }
+
+    function quickStagePreset(mode, btnEl = null) {
+      if (!isMyTurnToAct()) return;
+      const actor = state.players[state.turnIdx];
+      const { minTarget, maxTotalBet } = getMinRaiseTargetTotal(actor);
+      const potNow = getTotalPot();
+      const toCall = Math.max(0, state.currentBet - actor.streetBet);
+
+      let targetTotal = minTarget;
+      if (mode === 'min') {
+        targetTotal = minTarget;
+      } else if (mode === 'half') {
+        targetTotal = state.currentBet + Math.round((potNow + toCall) * 0.5);
+      } else if (mode === 'pot') {
+        targetTotal = state.currentBet + (potNow + toCall);
+      }
+      targetTotal = Math.max(minTarget, Math.min(maxTotalBet, targetTotal));
+      const deltaNeeded = Math.max(0, targetTotal - actor.streetBet);
+      const denomList = decomposeAmountToChips(deltaNeeded);
+      launchStaggeredMultiChipToss(denomList, btnEl);
+    }
+
+    function animateStreetBetsToCenterPot(bettingSnapshots, onComplete) {
+      const potAnchor = document.getElementById('centerPotStackAnchor') || document.getElementById('potDisplay');
+      if (!potAnchor || !bettingSnapshots || bettingSnapshots.length === 0) {
+        if (onComplete) onComplete();
+        return;
+      }
+
+      const toRect = potAnchor.getBoundingClientRect();
+      Sound.potGather();
+
+      let maxFlightTime = 0;
+      bettingSnapshots.forEach((snap, sIdx) => {
+        const seatEl = document.querySelector(`.seat-badge[data-player-id="${snap.id}"]`);
+        if (!seatEl) return;
+        const fromRect = seatEl.getBoundingClientRect();
+        const chipsToSlide = decomposeAmountToChips(snap.amount).slice(0, 4);
+
+        chipsToSlide.forEach((denom, cIdx) => {
+          const delay = sIdx * 30 + cIdx * 35;
+          const duration = 450;
+          maxFlightTime = Math.max(maxFlightTime, delay + duration);
+
+          animateChipFlight({
+            denom,
+            fromRect,
+            toRect,
+            targetOffsetX: Math.round(Math.random() * 8 - 4),
+            targetOffsetY: -cIdx * 3,
+            delay,
+            duration,
+            mode: 'gather',
+            startScale: 0.78,
+            endScale: 0.72,
+            onLand: () => {
+              if (cIdx === 0) bumpPot();
+            }
+          });
+        });
+      });
+
+      setTimeout(() => {
+        if (onComplete) onComplete();
+      }, Math.max(260, maxFlightTime));
+    }
+
+    function animateWinnerSweep(playerId, amountWon, fromStack, toStack) {
+      const seatEl = document.querySelector(`.seat-badge[data-player-id="${playerId}"]`);
+      const potAnchor = document.getElementById('centerPotStackAnchor') || document.getElementById('potDisplay');
+      if (!seatEl || !potAnchor) return;
+
+      seatEl.classList.add('winner-glow');
+      setTimeout(() => seatEl.classList.remove('winner-glow'), 1100);
+
+      const stackLabelEl = seatEl.querySelector('.seat-stack');
+      if (stackLabelEl && typeof fromStack === 'number' && typeof toStack === 'number') {
+        stackLabelEl.textContent = formatMoney(fromStack);
+        setTimeout(() => {
+          animateNumberTicker(stackLabelEl, fromStack, toStack, 620);
+        }, 180);
+      }
+
+      const fromRect = potAnchor.getBoundingClientRect();
+      const toRect = seatEl.getBoundingClientRect();
+      const sweepChips = decomposeAmountToChips(amountWon || state.bigBlind * 4).slice(0, 10);
+
+      sweepChips.forEach((denom, i) => {
+        animateChipFlight({
+          denom,
+          fromRect,
+          toRect,
+          targetOffsetX: Math.round(Math.random() * 10 - 5),
+          targetOffsetY: Math.round(Math.random() * 6 - 3),
+          delay: i * 35,
+          duration: 420,
+          mode: 'sweep',
+          startScale: 0.82,
+          endScale: 0.65,
+          onLand: () => {
+            Sound.chipThrow(0.96 + (i % 4) * 0.05, i * 30);
+          }
+        });
+      });
+    }
+
+    /* ==========================================================
+       9. ACTION BUTTON HANDLERS (FOLD, CHECK/CALL, RAISE, ALL-IN)
+       ========================================================== */
+    function resetSafetyLocks() {
+      foldArmed = false;
+      clearTimeout(foldArmTimer);
+      allInArmed = false;
+      clearTimeout(allInArmTimer);
+      document.getElementById('btnFold')?.classList.remove('armed');
+      document.getElementById('btnAllIn')?.classList.remove('armed');
+    }
+
+    function sendClientMoveIfRemote(payload) {
+      if (netRole === 'client' && wsConnection && wsConnection.readyState === WebSocket.OPEN) {
+        wsConnection.send(JSON.stringify({
+          type: 'PLAYER_ACTION',
+          room: state.roomCode,
+          playerId: myDeviceId,
+          payload
+        }));
+        stagedChips = [];
+        renderStagingPileAndDock();
+        return true;
+      }
+      return false;
+    }
+
+    function handleFoldTap() {
+      if (!isMyTurnToAct()) return;
+      const actor = state.players[state.turnIdx];
+      const toCall = Math.max(0, state.currentBet - actor.streetBet);
+
+      if (toCall === 0 && !foldArmed) {
+        foldArmed = true;
+        document.getElementById('btnFold').classList.add('armed');
+        document.getElementById('foldSubLabel').textContent = 'TAP AGAIN';
+        Sound.vibrate(12);
+        foldArmTimer = setTimeout(() => {
+          foldArmed = false;
+          renderStagingPileAndDock();
+        }, 2200);
+        return;
+      }
+
+      if (sendClientMoveIfRemote({ type: 'FOLD' })) return;
+      executeFold();
+    }
+
+    function executeFold() {
+      const actor = state.players[state.turnIdx];
+      pushUndoSnapshot();
+      actor.folded = true;
+      actor.acted = true;
+      actor.lastAction = 'FOLD';
+      Sound.foldSwoosh();
+      advanceTurnOrStreet('FOLD');
+    }
+
+    function handleCheckOrCall() {
+      if (!isMyTurnToAct()) return;
+      if (sendClientMoveIfRemote({ type: 'CHECK_CALL' })) return;
+      executeCheckOrCall();
+    }
+
+    function executeCheckOrCall() {
+      const actor = state.players[state.turnIdx];
+      const toCall = Math.max(0, state.currentBet - actor.streetBet);
+      pushUndoSnapshot();
+
+      if (toCall === 0) {
+        actor.acted = true;
+        actor.lastAction = 'CHECK';
+        Sound.woodCheck();
+        advanceTurnOrStreet('CHECK');
+      } else {
+        const prevPot = getTotalPot();
+        const paid = commitChips(actor, toCall);
+        actor.acted = true;
+        actor.lastAction = actor.allIn ? 'ALL-IN' : `CALL ${formatMoney(paid)}`;
+        Sound.chipThrow(1.02);
+        animateNumberTicker(document.getElementById('potDisplay'), prevPot, getTotalPot(), 320);
+        bumpPot();
+        advanceTurnOrStreet('CHIP_THROW');
+      }
+    }
+
+    function handleRaiseConfirmTap(btnEl) {
+      if (!isMyTurnToAct()) return;
+      const actor = state.players[state.turnIdx];
+      const { minTarget, maxTotalBet } = getMinRaiseTargetTotal(actor);
+      const stagedDelta = getStagedDeltaSum();
+
+      const proposedTotal = actor.streetBet + stagedDelta;
+      if (stagedDelta === 0 || (proposedTotal < minTarget && proposedTotal < maxTotalBet)) {
+        quickStagePreset('min', btnEl);
+        showToast(`Staged Min: ${formatMoney(minTarget)} — Tap again to confirm`);
+        return;
+      }
+
+      if (sendClientMoveIfRemote({ type: 'RAISE_TO', targetTotalBet: proposedTotal })) return;
+      executeBetOrRaiseTo(proposedTotal);
+    }
+
+    function executeBetOrRaiseTo(targetTotalBet) {
+      const actor = state.players[state.turnIdx];
+      const { minTarget, maxTotalBet } = getMinRaiseTargetTotal(actor);
+      const clampedTotal = Math.max(minTarget, Math.min(maxTotalBet, Math.round(targetTotalBet)));
+      const additionalNeeded = Math.max(0, clampedTotal - actor.streetBet);
+
+      pushUndoSnapshot();
+      const prevPot = getTotalPot();
+      const wasUnopened = state.currentBet === 0;
+      const previousBet = state.currentBet;
+
+      commitChips(actor, additionalNeeded);
+
+      if (actor.streetBet > previousBet) {
+        const raiseIncrement = actor.streetBet - previousBet;
+        if (raiseIncrement >= state.minRaiseDelta) {
+          state.minRaiseDelta = raiseIncrement;
+        }
+        state.currentBet = actor.streetBet;
+        state.players.forEach((p, idx) => {
+          if (idx !== state.turnIdx && !p.folded && !p.isSpectator && !p.allIn) {
+            p.acted = false;
+          }
+        });
+      }
+
+      actor.acted = true;
+      let cue = 'CHIP_THROW';
+      if (actor.allIn) {
+        actor.lastAction = `ALL-IN ${formatMoney(actor.streetBet)}`;
+        Sound.allInCascade();
+        cue = 'ALL_IN';
+      } else {
+        actor.lastAction = `${wasUnopened ? 'BET' : 'RAISE'} ${formatMoney(actor.streetBet)}`;
+        Sound.chipThrow(1.15);
+      }
+
+      animateNumberTicker(document.getElementById('potDisplay'), prevPot, getTotalPot(), 350);
+      bumpPot();
+      advanceTurnOrStreet(cue);
+    }
+
+    function handleAllInTap(btnEl) {
+      if (!isMyTurnToAct()) return;
+      const actor = state.players[state.turnIdx];
+
+      if (!allInArmed) {
+        allInArmed = true;
+        document.getElementById('btnAllIn').classList.add('armed');
+        document.getElementById('allInSubLabel').textContent = 'CONFIRM';
+        const allInChips = decomposeAmountToChips(actor.stack).slice(0, 12);
+        launchStaggeredMultiChipToss(allInChips, btnEl);
+        Sound.vibrate(20);
+        allInArmTimer = setTimeout(() => {
+          allInArmed = false;
+          renderStagingPileAndDock();
+        }, 2800);
+        return;
+      }
+
+      const maxTotalBet = actor.streetBet + actor.stack;
+      if (sendClientMoveIfRemote({ type: 'ALL_IN' })) return;
+      executeBetOrRaiseTo(maxTotalBet);
+    }
+
+    /* ==========================================================
+       10. HOST DRAWER & SHOWDOWN WINNER PICKER
+       ========================================================== */
+    function openSheet(id) {
+      document.getElementById(id)?.classList.add('open');
+    }
+
+    function closeSheet(id) {
+      document.getElementById(id)?.classList.remove('open');
+    }
+
+    function openHostDrawer() {
+      updateUndoCountUI();
+      openSheet('hostDrawerSheet');
+    }
+
+    function openAwardPotModal(fromShowdown) {
+      recalculatePots();
+      pendingPotsQueue = state.pots.filter(p => p.amount > 0);
+      if (pendingPotsQueue.length === 0) {
+        const total = getTotalPot();
+        if (total <= 0) {
+          showToast('Pot is currently $0');
+          return;
+        }
+        pendingPotsQueue = [{ amount: total, eligibleIds: getActiveNonFoldedPlayers().map(p => p.id) }];
+      }
+      currentPotAwardIndex = 0;
+      splitPotMode = false;
+      selectedWinnerIds.clear();
+      renderCurrentPotAwardStep();
+      openSheet('awardPotSheet');
+    }
+
+    function toggleSplitPotMode() {
+      splitPotMode = !splitPotMode;
+      selectedWinnerIds.clear();
+      Sound.chipThrow(1.05);
+      renderCurrentPotAwardStep();
+    }
+
+    function renderCurrentPotAwardStep() {
+      const potObj = pendingPotsQueue[currentPotAwardIndex];
+      if (!potObj) {
+        closeSheet('awardPotSheet');
+        checkBustedPlayersBeforeNextHand();
+        return;
+      }
+
+      const potName = pendingPotsQueue.length > 1
+        ? (currentPotAwardIndex === 0 ? 'Main Pot' : `Side Pot #${currentPotAwardIndex}`)
+        : 'Pot';
+
+      document.getElementById('awardPotTitle').textContent = `Award ${formatMoney(potObj.amount)} ${potName}`;
+      document.getElementById('awardPotSubtitle').textContent = splitPotMode
+        ? 'Tap multiple players to split evenly'
+        : 'Tap 1 player to immediately sweep pot';
+
+      const splitBtn = document.getElementById('splitPotToggleBtn');
+      splitBtn.textContent = splitPotMode ? 'Split Pot: On' : 'Split Pot: Off';
+      splitBtn.classList.toggle('active', splitPotMode);
+
+      const confirmBtn = document.getElementById('confirmSplitAwardBtn');
+      confirmBtn.style.display = splitPotMode ? 'block' : 'none';
+
+      const eligiblePlayers = state.players.filter(p => potObj.eligibleIds.includes(p.id) && !p.isSpectator);
+      const candidates = eligiblePlayers.length > 0 ? eligiblePlayers : getActiveNonFoldedPlayers();
+
+      const grid = document.getElementById('winnerSelectionGrid');
+      grid.innerHTML = '';
+
+      candidates.forEach(p => {
+        const card = document.createElement('div');
+        card.className = 'winner-card' + (selectedWinnerIds.has(p.id) ? ' selected' : '');
+        card.innerHTML = `
+          <span style="font-size:0.95rem; font-weight:800;">${escapeHtml(p.name)}</span>
+          <span style="font-family:var(--font-mono); font-size:0.78rem; color:var(--text-secondary);">Stack: ${formatMoney(p.stack)}</span>
+        `;
+        card.onclick = () => {
+          if (!splitPotMode) {
+            selectedWinnerIds = new Set([p.id]);
+            confirmWinnerAward();
+          } else {
+            if (selectedWinnerIds.has(p.id)) selectedWinnerIds.delete(p.id);
+            else selectedWinnerIds.add(p.id);
+            Sound.chipThrow(1.08);
+            renderCurrentPotAwardStep();
+          }
+        };
+        grid.appendChild(card);
+      });
+    }
+
+    function confirmWinnerAward() {
+      const potObj = pendingPotsQueue[currentPotAwardIndex];
+      if (!potObj || selectedWinnerIds.size === 0) {
+        showToast('Select at least 1 winner');
+        return;
+      }
+
+      pushUndoSnapshot();
+      const winners = state.players.filter(p => selectedWinnerIds.has(p.id));
+      const share = Math.floor(potObj.amount / winners.length);
+      let rem = potObj.amount - share * winners.length;
+
+      winners.forEach(w => {
+        const extra = rem > 0 ? 1 : 0;
+        if (rem > 0) rem -= 1;
+        const prevStack = w.stack;
+        const wonAmount = share + extra;
+        w.stack += wonAmount;
+        animateWinnerSweep(w.id, wonAmount, prevStack, w.stack);
+      });
+
+      Sound.winnerSweep();
+      currentPotAwardIndex += 1;
+      selectedWinnerIds.clear();
+
+      if (currentPotAwardIndex < pendingPotsQueue.length) {
+        renderCurrentPotAwardStep();
+      } else {
+        closeSheet('awardPotSheet');
+        setTimeout(() => checkBustedPlayersBeforeNextHand(), 1050);
+      }
+    }
+
+    /* Manage Stacks (+ $500 / - $500 / Rebuy / Buy Back In for Spectators) */
+    function openManageStacksSheet() {
+      const list = document.getElementById('manageStacksList');
+      list.innerHTML = '';
+      state.players.forEach((p, idx) => {
+        const row = document.createElement('div');
+        row.className = 'stack-row';
+
+        if (p.isSpectator || p.stack <= 0) {
+          row.innerHTML = `
+            <span class="stack-row-name">👻 ${escapeHtml(p.name)}</span>
+            <span class="stack-row-val" style="color:var(--text-secondary);">SPECTATOR</span>
+            <button class="buy-back-in-btn" onclick="buyBackInSpectator(${idx})">
+              🔄 Buy Back In (${formatMoney(state.startingStack)})
+            </button>
+          `;
+        } else {
+          row.innerHTML = `
+            <span class="stack-row-name">${escapeHtml(p.name)}</span>
+            <span class="stack-row-val">${formatMoney(p.stack)}</span>
+            <button class="stack-adj-btn" onclick="adjustStack(${idx}, -500)">-$500</button>
+            <button class="stack-adj-btn" onclick="adjustStack(${idx}, 500)">+$500</button>
+            <button class="stack-adj-btn" style="color:var(--gold);" onclick="rebuyPlayer(${idx})">Rebuy</button>
+          `;
+        }
+        list.appendChild(row);
+      });
+      openSheet('manageStacksSheet');
+    }
+
+    function buyBackInSpectator(idx) {
+      const p = state.players[idx];
+      if (!p) return;
+      pushUndoSnapshot();
+      const buyInAmount = state.startingStack || 1000;
+      p.isSpectator = false;
+      p.status = 'active';
+      p.stack = buyInAmount;
+      p.folded = true; // Joins actively on the next hand deal
+      p.lastAction = 'NEXT HAND';
+
+      closeSheet('manageStacksSheet');
+      saveAndBroadcastState('WINNER');
+      renderAll();
+      animateTopRebuyCascade(p.id, buyInAmount, 0, buyInAmount);
+      Sound.winnerSweep();
+      showToast(`🔄 ${p.name} bought back in (${formatMoney(buyInAmount)})`);
+    }
+
+    function adjustStack(idx, delta) {
+      const p = state.players[idx];
+      if (!p) return;
+      pushUndoSnapshot();
+      p.stack = Math.max(0, p.stack + delta);
+      if (p.stack > 0) {
+        p.isSpectator = false;
+        p.status = 'active';
+      }
+      Sound.chipThrow(delta > 0 ? 1.12 : 0.88);
+      saveAndBroadcastState();
+      openManageStacksSheet();
+      renderAll();
+    }
+
+    function rebuyPlayer(idx) {
+      const p = state.players[idx];
+      if (!p) return;
+      pushUndoSnapshot();
+      const prevStack = p.stack;
+      p.stack += state.startingStack;
+      p.isSpectator = false;
+      p.status = 'active';
+      closeSheet('manageStacksSheet');
+      saveAndBroadcastState('WINNER');
+      renderAll();
+      animateTopRebuyCascade(p.id, state.startingStack, prevStack, p.stack);
+      Sound.winnerSweep();
+      showToast(`${p.name} +${formatMoney(state.startingStack)}`);
+    }
+
+    function openForceSkipSheet() {
+      openSheet('forceSkipSheet');
+    }
+
+    function forceAdvanceStreet() {
+      closeSheet('forceSkipSheet');
+      pushUndoSnapshot();
+      state.players.forEach(p => {
+        if (!p.folded && !p.isSpectator && !p.allIn) {
+          p.acted = true;
+          p.streetBet = state.currentBet;
+        }
+      });
+      advanceTurnOrStreet('POT_GATHER');
+    }
+
+    function forceCheckOrFoldCurrentPlayer() {
+      closeSheet('forceSkipSheet');
+      const actor = state.players[state.turnIdx];
+      if (!actor) return;
+      const toCall = Math.max(0, state.currentBet - actor.streetBet);
+      if (toCall === 0) executeCheckOrCall();
+      else executeFold();
+    }
+
+    function bumpPot() {
+      const el = document.getElementById('potDisplay');
+      if (!el) return;
+      el.classList.remove('bump');
+      void el.offsetWidth;
+      el.classList.add('bump');
+      setTimeout(() => el.classList.remove('bump'), 220);
+    }
+
+    /* ==========================================================
+       11. UI RENDERING (TOP POT, TABLE RING, STAGING PILE & RACK)
+       ========================================================== */
+    function renderAll() {
+      renderTopZone();
+      renderTableRing();
+      renderStagingPileAndDock();
+    }
+
+    function renderTopZone() {
+      const totalPot = getTotalPot();
+      document.getElementById('potDisplay').textContent = formatMoney(totalPot);
+      document.getElementById('streetDisplay').textContent = STREETS[state.streetIndex] || 'Pre-Flop';
+
+      const actor = state.players[state.turnIdx];
+      const toCall = actor && state.streetIndex < 4 && !actor.isSpectator
+        ? Math.max(0, state.currentBet - actor.streetBet)
+        : 0;
+      document.getElementById('callTargetDisplay').textContent = `To Call: ${formatMoney(toCall)}`;
+
+      const potStackAnchor = document.getElementById('centerPotStackAnchor');
+      if (potStackAnchor) {
+        potStackAnchor.innerHTML = '';
+        if (totalPot > 0) {
+          const potChips = decomposeAmountToChips(totalPot).slice(0, 6);
+          potChips.forEach((denom, idx) => {
+            const meta = getDenomMeta(denom);
+            const disc = document.createElement('div');
+            disc.className = `center-pot-disc ${meta.cls}`;
+            disc.style.transform = `translate3d(0, ${-idx * 3}px, 0)`;
+            potStackAnchor.appendChild(disc);
+          });
+        }
+      }
+
+      const sideBar = document.getElementById('sidePotsBar');
+      sideBar.innerHTML = '';
+      if (state.pots && state.pots.length > 1) {
+        state.pots.forEach((p, idx) => {
+          if (p.amount <= 0) return;
+          const tag = document.createElement('span');
+          tag.className = 'side-pot-tag';
+          tag.textContent = `${idx === 0 ? 'Main' : 'Side ' + idx}: ${formatMoney(p.amount)}`;
+          sideBar.appendChild(tag);
+        });
+      }
+
+      const pips = document.querySelectorAll('#boardPips .board-pip');
+      const revealed = state.streetIndex === 0 ? 0 : state.streetIndex === 1 ? 3 : state.streetIndex === 2 ? 4 : 5;
+      pips.forEach((pip, idx) => pip.classList.toggle('dealt', idx < revealed));
+    }
+
+    function renderTableRing() {
+      const container = document.getElementById('seatsLayer');
+      container.innerHTML = '';
+      const count = state.players.length;
+      if (count === 0) return;
+
+      state.players.forEach((p, idx) => {
+        const angleDeg = 90 + (idx * (360 / count));
+        const rad = (angleDeg * Math.PI) / 180;
+        const rx = 41;
+        const ry = 40;
+        const xPct = 50 + rx * Math.cos(rad);
+        const yPct = 50 + ry * Math.sin(rad);
+
+        const isTurn = state.streetIndex < 4 && idx === state.turnIdx && !p.folded && !p.isSpectator && !p.allIn;
+
+        const seat = document.createElement('div');
+        seat.dataset.playerId = p.id;
+        let cls = 'seat-badge';
+        if (p.isSpectator) {
+          cls += ' spectator';
+        } else if (isTurn) {
+          cls += ' active-turn';
+        } else {
+          cls += ' inactive-dim';
+          if (p.folded) cls += ' folded';
+        }
+        seat.className = cls;
+        seat.style.left = `${xPct}%`;
+        seat.style.top = `${yPct}%`;
+
+        if (p.isSpectator) {
+          seat.innerHTML = `
+            <span class="seat-name">${escapeHtml(p.name)}</span>
+            <span class="seat-spectator-pill">👻 SPECTATOR</span>
+          `;
+          seat.onclick = () => openManageStacksSheet();
+        } else {
+          let tagText = 'READY';
+          let tagClass = 'seat-bet-tag';
+          if (p.folded) {
+            tagText = 'FOLD';
+          } else if (p.allIn) {
+            tagText = p.streetBet > 0 ? `ALL-IN ${formatMoney(p.streetBet)}` : 'ALL-IN';
+            tagClass += ' action-allin';
+          } else if (p.streetBet > 0) {
+            tagText = `BET ${formatMoney(p.streetBet)}`;
+            tagClass += ' has-bet';
+          } else if (p.lastAction === 'CHECK') {
+            tagText = 'CHECK';
+            tagClass += ' action-check';
+          } else if (p.lastAction) {
+            tagText = p.lastAction;
+          }
+
+          const isDealer = idx === state.dealerIdx;
+          const blindBadge = idx === state.sbIdx ? 'SB' : idx === state.bbIdx ? 'BB' : '';
+
+          seat.innerHTML = `
+            ${isDealer ? '<div class="dealer-token">D</div>' : ''}
+            ${blindBadge ? `<div class="blind-pip">${blindBadge}</div>` : ''}
+            <span class="seat-name">${escapeHtml(p.name)}</span>
+            <span class="seat-stack">${formatMoney(p.stack)}</span>
+            <span class="${tagClass}">${escapeHtml(tagText)}</span>
+          `;
+
+          seat.onclick = () => {
+            if (state.streetIndex === 4) openAwardPotModal(true);
+          };
+        }
+
+        container.appendChild(seat);
+      });
+    }
+
+    function renderStagingPileOnly() {
+      const actor = state.players[state.turnIdx];
+      const stackContainer = document.getElementById('stagingChipsStack');
+      const pileLabel = document.getElementById('stagingPileLabel');
+      if (!stackContainer || !pileLabel) return;
+      stackContainer.innerHTML = '';
+
+      const stagedDelta = getStagedDeltaSum();
+
+      if (stagedChips.length === 0) {
+        pileLabel.className = 'staging-empty-hint';
+        pileLabel.textContent = actor && !actor.isSpectator ? `${actor.name}: Tap chips to stage bet` : 'Waiting...';
+      } else {
+        const visibleChips = stagedChips.slice(-10);
+        visibleChips.forEach((item, i) => {
+          if (item.landing) return;
+          const meta = getDenomMeta(item.denom);
+          const disc = document.createElement('div');
+          disc.className = `staged-chip-disc ${meta.cls}`;
+          disc.style.transform = `translate3d(${item.scatterX || 0}px, ${-i * 4}px, 0) rotateZ(${item.rotDeg || 0}deg)`;
+          disc.innerHTML = `<div class="chip-inlay">$${item.denom}</div>`;
+          stackContainer.appendChild(disc);
+        });
+        pileLabel.className = 'staging-pile-label';
+        const totalBetWithStage = (actor ? actor.streetBet : 0) + stagedDelta;
+        pileLabel.textContent = `Staged: ${formatMoney(totalBetWithStage)} (Tap to pull back)`;
+      }
+    }
+
+    function renderStagingPileAndDock() {
+      const dock = document.getElementById('actionDock');
+      const specBanner = document.getElementById('spectatorClientBanner');
+
+      // Check if this connected client phone is currently a Spectator
+      const myPlayer = netRole === 'client' ? state.players.find(p => p.id === myDeviceId) : null;
+      if (myPlayer && myPlayer.isSpectator) {
+        specBanner.classList.add('visible');
+        dock.style.display = 'none';
+        renderStagingPileOnly();
+        return;
+      } else {
+        specBanner.classList.remove('visible');
+        dock.style.display = 'flex';
+      }
+
+      const canAct = isMyTurnToAct();
+      dock.classList.toggle('dock-disabled', !canAct);
+
+      const actor = state.players[state.turnIdx];
+      renderStagingPileOnly();
+
+      const stagedDelta = getStagedDeltaSum();
+
+      const rack = document.getElementById('chipRackArc');
+      rack.innerHTML = '';
+      if (actor && !actor.isSpectator) {
+        const remainingToStage = Math.max(0, actor.stack - stagedDelta);
+        CHIP_DENOMS.forEach(d => {
+          if (d.val > actor.stack) return;
+          const chipEl = document.createElement('button');
+          chipEl.className = `casino-chip ${d.cls}`;
+          chipEl.dataset.denom = String(d.val);
+          if (d.val > remainingToStage) {
+            chipEl.style.opacity = '0.35';
+          }
+          chipEl.innerHTML = `<div class="chip-inlay">$${d.val}</div>`;
+
+          let startY = null;
+          let flickHandled = false;
+          chipEl.addEventListener('pointerdown', (e) => {
+            startY = e.clientY;
+            flickHandled = false;
+          });
+          chipEl.addEventListener('pointerup', (e) => {
+            if (startY !== null && startY - e.clientY > 18) {
+              flickHandled = true;
+              throwChipFromRack(d.val, chipEl);
+            }
+            startY = null;
+          });
+          chipEl.onclick = () => {
+            if (!flickHandled) throwChipFromRack(d.val, chipEl);
+          };
+          rack.appendChild(chipEl);
+        });
+      }
+
+      if (!actor) return;
+
+      const toCall = Math.max(0, state.currentBet - actor.streetBet);
+      const { minTarget, maxTotalBet } = getMinRaiseTargetTotal(actor);
+
+      document.getElementById('foldMainLabel').textContent = 'Fold';
+      document.getElementById('foldSubLabel').textContent = foldArmed ? 'TAP AGAIN' : (toCall === 0 ? 'Free Check' : '');
+
+      const callMain = document.getElementById('callMainLabel');
+      const callSub = document.getElementById('callSubLabel');
+      if (toCall === 0) {
+        callMain.textContent = 'Check';
+        callSub.textContent = '';
+      } else {
+        callMain.textContent = 'Call';
+        callSub.textContent = formatMoney(Math.min(actor.stack, toCall));
+      }
+
+      const raiseMain = document.getElementById('raiseMainLabel');
+      const raiseSub = document.getElementById('raiseSubLabel');
+      const isUnopened = state.currentBet === 0;
+      const targetDisplay = stagedDelta > 0
+        ? Math.max(minTarget, Math.min(maxTotalBet, actor.streetBet + stagedDelta))
+        : minTarget;
+
+      raiseMain.textContent = isUnopened ? 'Bet' : 'Raise To';
+      raiseSub.textContent = formatMoney(targetDisplay);
+
+      document.getElementById('allInMainLabel').textContent = 'All-In';
+      document.getElementById('allInSubLabel').textContent = allInArmed ? 'CONFIRM' : formatMoney(actor.stack);
+    }
+
+    function resumeSavedTable() {
+      showScreen(null);
+      renderAll();
+    }
+
+    /* ==========================================================
+       12. INITIALIZATION & QR DEEP-LINK AUTO-DETECTION
+       ========================================================== */
+    window.addEventListener('DOMContentLoaded', () => {
+      const params = new URLSearchParams(location.search);
+      if (params.get('room')) {
+        roomCode = params.get('room').toUpperCase();
+        state.roomCode = roomCode;
+      }
+
+      if (params.get('join') === '1') {
+        openJoinLobby();
+        return;
+      }
+
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed && Array.isArray(parsed.players) && parsed.players.length >= 2) {
+            state = parsed;
+            if (state.status === 'PLAYING') {
+              document.getElementById('resumeGameBtn').style.display = 'inline-block';
+            }
+          }
+        }
+      } catch (_) {}
+
+      renderAll();
+    });
+
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js').catch(() => {});
+      });
+    }
+  </script>
+</body>
+</html>
