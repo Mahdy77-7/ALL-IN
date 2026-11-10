@@ -14,7 +14,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <link rel="manifest" href="./manifest.json" />
-  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js" defer></script>
+  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
   <style>
     :root {
       --bg-felt: #0B1311;
@@ -1587,6 +1587,21 @@
       border: none;
       outline: none;
     }
+
+    .app-version-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 3px 10px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+      font-size: 0.68rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+    }
   </style>
 </head>
 <body>
@@ -1617,6 +1632,10 @@
       <button id="resumeGameBtn" class="resume-link-btn" onclick="resumeSavedTable()">
         Resume Active Game Table →
       </button>
+
+      <div style="margin-top:6px; display:flex; justify-content:center;">
+        <span class="app-version-badge" data-version-badge>v1.4.0</span>
+      </div>
     </div>
   </section>
 
@@ -1627,7 +1646,7 @@
     <div class="lobby-card">
       <div class="lobby-top-bar">
         <button class="lobby-back-btn" onclick="showScreen('homeScreen')">← Home</button>
-        <span class="lobby-title">Host Waiting Lobby</span>
+        <span class="lobby-title">Host Lobby <span class="app-version-badge" data-version-badge style="padding:1px 6px; font-size:0.6rem; margin-left:4px;">v1.4.0</span></span>
         <span id="hostRelayStatusBadge" style="font-size:0.68rem; font-weight:800; padding:4px 8px; border-radius:999px; background:rgba(16,185,129,0.12); border:1px solid rgba(16,185,129,0.35); color:#A7F3D0; white-space:nowrap;">🟡 Connecting...</span>
       </div>
 
@@ -1688,7 +1707,7 @@
     <div class="lobby-card">
       <div class="lobby-top-bar">
         <button class="lobby-back-btn" onclick="leaveRoomAsGuest()">← Leave</button>
-        <span class="lobby-title">Join Friend's Table</span>
+        <span class="lobby-title">Join Table <span class="app-version-badge" data-version-badge style="padding:1px 6px; font-size:0.6rem; margin-left:4px;">v1.4.0</span></span>
         <span id="clientRelayStatusBadge" style="font-size:0.68rem; font-weight:800; padding:4px 8px; border-radius:999px; background:rgba(16,185,129,0.12); border:1px solid rgba(16,185,129,0.35); color:#A7F3D0; white-space:nowrap;">🟡 Connecting...</span>
       </div>
 
@@ -1700,7 +1719,7 @@
 
         <div style="background:var(--surface-2); border:1px solid var(--border-subtle); border-radius:14px; padding:10px 12px;">
           <div class="cycle-pill-label" style="margin-bottom:4px;">Room Code (Auto-filled from QR or Custom)</div>
-          <input id="clientRoomCodeInput" type="text" maxlength="8" placeholder="POKR" oninput="this.value = this.value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase()" style="font-family:var(--font-mono); font-size:1.15rem; font-weight:900; letter-spacing:0.14em; text-transform:uppercase; width:100%; color:var(--gold);" />
+          <input id="clientRoomCodeInput" type="text" maxlength="8" placeholder="POKR" oninput="onClientRoomCodeInput(this)" style="font-family:var(--font-mono); font-size:1.15rem; font-weight:900; letter-spacing:0.14em; text-transform:uppercase; width:100%; color:var(--gold);" />
         </div>
 
         <button id="clientJoinSubmitBtn" class="start-game-night-btn" onclick="submitClientJoinLobby()">
@@ -2623,6 +2642,7 @@
     /* ==========================================================
        4. LOBBY, NETWORKING & POKER STATE MACHINE
        ========================================================== */
+    const APP_VERSION = 'v1.4.0';
     const STORAGE_KEY = 'felt_poker_state_v3';
     const DEVICE_ID_KEY = 'felt_device_id_v3';
     const STREETS = ['Pre-Flop', 'Flop', 'Turn', 'River', 'Showdown'];
@@ -2656,6 +2676,7 @@
     }
 
     let netRole = 'host';
+    let activeScreen = 'homeScreen';
     let wsConnection = null;
     let mqttClient = null;
     let relayConnected = false;
@@ -2679,8 +2700,9 @@
     let undoHistory = [];
 
     let state = {
-      status: 'LOBBY',
+      status: 'lobby',
       phase: 'lobby',
+      screen: 'lobby',
       roomCode: roomCode,
       startingStack: 1000,
       smallBlind: 5,
@@ -2699,6 +2721,38 @@
         { id: 'local_2', name: 'Alex', mode: 'local', isLocal: true, isConnected: true, status: 'active', isSpectator: false, stack: 1000, streetBet: 0, totalCommitted: 0, folded: false, allIn: false, acted: false, lastAction: '' }
       ]
     };
+
+    function isPlayingStatus(statusVal = state?.status) {
+      return String(statusVal || '').toLowerCase() === 'playing';
+    }
+
+    function isLobbyStatus(st = state) {
+      const s = String(st?.status || '').toLowerCase();
+      return (s === 'lobby' || !s) && st?.screen !== 'game' && st?.phase !== 'game';
+    }
+
+    function isChampionStatus(st = state) {
+      return String(st?.status || '').toLowerCase() === 'champion' || st?.phase === 'champion' || st?.screen === 'champion';
+    }
+
+    // Fix A: Derive whether the Game Table is active directly from gameState
+    function computeIsGameActive(gameState = state, screenVal = activeScreen) {
+      if (!gameState) return false;
+      if (isChampionStatus(gameState)) return false;
+      const statusLower = String(gameState.status || '').toLowerCase();
+      return (
+        screenVal === 'game' ||
+        gameState.status === 'playing' ||
+        statusLower === 'playing' ||
+        gameState.phase === 'game' ||
+        gameState.screen === 'game' ||
+        (Array.isArray(gameState.players) &&
+          gameState.players.length > 0 &&
+          Boolean(gameState.street) &&
+          gameState.pot !== undefined &&
+          statusLower !== 'lobby')
+      );
+    }
 
     let stagedChips = [];
     let foldArmed = false;
@@ -2736,6 +2790,7 @@
     }
 
     function showScreen(screenId) {
+      activeScreen = screenId === null ? 'game' : screenId;
       ['homeScreen', 'hostLobbyScreen', 'joinLobbyScreen', 'championScreen'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.classList.toggle('active', id === screenId);
@@ -2890,138 +2945,53 @@
     };
     let hostContinuousSyncTimer = null;
     let clientConnectedRoomCode = '';
+    const processedMqttPacketIds = new Set();
 
-    function createLightweightMqttClient(brokerUrls, onConnected, onTopicMessage, willConfig = null) {
-      handleMqttMessageRef.current = onTopicMessage || ((_t, _p) => {});
-
-      // If official mqtt.min.js is loaded in window.mqtt, use it with QoS 1 & automatic packet buffering
-      if (typeof window !== 'undefined' && window.mqtt && typeof window.mqtt.connect === 'function') {
-        let currentIdx = 0;
-        let client = null;
-        let closedByUser = false;
-        const subs = new Set();
-
-        function connectMqttJs(idx) {
-          if (closedByUser) return;
-          currentIdx = idx % brokerUrls.length;
-          const url = brokerUrls[currentIdx];
-          const cid = 'allin_' + myDeviceId + '_' + Math.random().toString(36).slice(2, 6);
-          const opts = {
-            clientId: cid,
-            clean: true,
-            keepalive: 25,
-            connectTimeout: 4500,
-            reconnectPeriod: 0
-          };
-          if (willConfig && willConfig.topic && willConfig.payload) {
-            opts.will = {
-              topic: willConfig.topic,
-              payload: String(willConfig.payload),
-              qos: Number(willConfig.qos || 1),
-              retain: Boolean(willConfig.retain)
-            };
+    function shouldProcessIncomingPacket(payloadStr) {
+      if (!payloadStr) return false;
+      try {
+        const parsed = JSON.parse(payloadStr);
+        if (!parsed || typeof parsed !== 'object') return false;
+        const isStatePacket =
+          parsed.type === 'SYNC_STATE' ||
+          parsed.type === 'STATE_UPDATE' ||
+          parsed.type === 'GAME_STATE' ||
+          parsed.type === 'LOBBY_STATE' ||
+          parsed.syncType === 'GAME_STATE' ||
+          parsed.syncType === 'LOBBY_STATE';
+        // Never drop a state packet on a Guest phone that is still on the Lobby screen when the packet says game is active
+        if (isStatePacket && netRole === 'client') {
+          const incomingSt = parsed.gameState || parsed.state || parsed;
+          if (computeIsGameActive(incomingSt, parsed.screen || parsed.phase) && activeScreen !== 'game') {
+            return true;
           }
-
-          try {
-            if (client) {
-              try { client.end(true); } catch (_) {}
-            }
-            client = window.mqtt.connect(url, opts);
-          } catch (_) {
-            setTimeout(() => connectMqttJs(currentIdx + 1), 1200);
-            return;
-          }
-
-          let fallbackTimer = setTimeout(() => {
-            if (client && !client.connected && !closedByUser) {
-              try { client.end(true); } catch (_) {}
-              connectMqttJs(currentIdx + 1);
-            }
-          }, 5000);
-
-          client.on('connect', () => {
-            clearTimeout(fallbackTimer);
-            updateRelayStatusBadges(true);
-            subs.forEach(t => {
-              try { client.subscribe(t, { qos: 1 }); } catch (_) {}
-            });
-            if (onConnected) onConnected();
-          });
-
-          client.on('message', (topic, payloadBuf) => {
-            try {
-              const payloadStr = typeof payloadBuf === 'string'
-                ? payloadBuf
-                : new TextDecoder().decode(payloadBuf);
-              if (handleMqttMessageRef.current) {
-                handleMqttMessageRef.current(topic, payloadStr);
-              }
-            } catch (_) {}
-          });
-
-          client.on('close', () => {
-            clearTimeout(fallbackTimer);
-            if (!closedByUser) {
-              updateRelayStatusBadges(false);
-              setTimeout(() => connectMqttJs(currentIdx + 1), 1400);
-            }
-          });
-
-          client.on('error', () => {});
         }
-
-        connectMqttJs(0);
-
-        return {
-          subscribe(topic) {
-            subs.add(topic);
-            if (client && client.connected) {
-              try { client.subscribe(topic, { qos: 1 }); } catch (_) {}
-            }
-          },
-          unsubscribe(topic) {
-            subs.delete(topic);
-            if (client && client.connected) {
-              try { client.unsubscribe(topic); } catch (_) {}
-            }
-          },
-          publish(topic, objOrStr, retain = false) {
-            const str = typeof objOrStr === 'string' ? objOrStr : JSON.stringify(objOrStr);
-            if (client) {
-              try {
-                client.publish(topic, str, { qos: 1, retain: Boolean(retain) });
-                return true;
-              } catch (_) {}
-            }
-            return false;
-          },
-          isOpen() {
-            return Boolean(client && client.connected);
-          },
-          close() {
-            closedByUser = true;
-            try { if (client) client.end(true); } catch (_) {}
+        if (parsed._pktId) {
+          if (processedMqttPacketIds.has(parsed._pktId)) return false;
+          processedMqttPacketIds.add(parsed._pktId);
+          if (processedMqttPacketIds.size > 400) {
+            const first = processedMqttPacketIds.values().next().value;
+            processedMqttPacketIds.delete(first);
           }
-        };
+        }
+        return true;
+      } catch (_) {
+        return false;
       }
+    }
 
-      // Offline / Zero-CDN Native MQTT v3.1.1 over WebSocket Fallback with CONNACK Queueing
-      let currentIdx = 0;
+    function createSingleNativeWsMqttLink(url, subsSet, willConfig, onAnyConnected, onAnyClosed) {
       let sock = null;
       let mqttConnAcked = false;
       let pingTimer = null;
       let closedByUser = false;
       let rxBuffer = new Uint8Array(0);
-      const subs = new Set();
       const pendingPublishes = [];
       let pktIdCounter = 1;
 
-      function connectNext(idx) {
+      function connectSocket() {
         if (closedByUser) return;
         mqttConnAcked = false;
-        currentIdx = idx % brokerUrls.length;
-        const url = brokerUrls[currentIdx];
-
         try {
           if (sock) {
             try { sock.close(); } catch (_) {}
@@ -3029,13 +2999,13 @@
           sock = new WebSocket(url, 'mqtt');
           sock.binaryType = 'arraybuffer';
         } catch (_) {
-          setTimeout(() => connectNext(currentIdx + 1), 1200);
+          setTimeout(connectSocket, 1800);
           return;
         }
 
         let handshakeTimer = setTimeout(() => {
-          try { sock.close(); } catch (_) {}
-        }, 5000);
+          try { if (sock && !mqttConnAcked) sock.close(); } catch (_) {}
+        }, 5500);
 
         sock.onopen = () => {
           const cid = 'allin_' + myDeviceId + '_' + Math.random().toString(36).slice(2, 6);
@@ -3070,11 +3040,9 @@
             rxBuffer = rxBuffer.slice(totalPktLen);
 
             if (msgType === 2) {
-              // CONNACK
               clearTimeout(handshakeTimer);
               mqttConnAcked = true;
-              updateRelayStatusBadges(true);
-              subs.forEach(t => {
+              subsSet.forEach(t => {
                 if (sock && sock.readyState === WebSocket.OPEN) {
                   sock.send(buildMqttSubscribePacket(t, pktIdCounter++));
                 }
@@ -3086,12 +3054,11 @@
               clearInterval(pingTimer);
               pingTimer = setInterval(() => {
                 if (sock && sock.readyState === WebSocket.OPEN && mqttConnAcked) {
-                  sock.send(new Uint8Array([0xc0, 0x00])); // PINGREQ
+                  sock.send(new Uint8Array([0xc0, 0x00]));
                 }
               }, 15000);
-              if (onConnected) onConnected();
+              if (onAnyConnected) onAnyConnected();
             } else if (msgType === 3) {
-              // PUBLISH
               const qos = (headerByte >> 1) & 0x03;
               if (pktBody.length < 2) continue;
               const topicLen = (pktBody[0] << 8) | pktBody[1];
@@ -3100,7 +3067,7 @@
               if (pktBody.length >= payloadStart) {
                 const topicStr = new TextDecoder().decode(pktBody.slice(2, 2 + topicLen));
                 const payloadStr = new TextDecoder().decode(pktBody.slice(payloadStart));
-                if (handleMqttMessageRef.current) {
+                if (shouldProcessIncomingPacket(payloadStr) && handleMqttMessageRef.current) {
                   handleMqttMessageRef.current(topicStr, payloadStr);
                 }
               }
@@ -3117,29 +3084,26 @@
           clearInterval(pingTimer);
           mqttConnAcked = false;
           if (!closedByUser) {
-            updateRelayStatusBadges(false);
-            setTimeout(() => connectNext(currentIdx + 1), 1400);
+            if (onAnyClosed) onAnyClosed();
+            setTimeout(connectSocket, 1800);
           }
         };
       }
 
-      connectNext(0);
+      connectSocket();
 
       return {
         subscribe(topic) {
-          subs.add(topic);
           if (sock && sock.readyState === WebSocket.OPEN && mqttConnAcked) {
             sock.send(buildMqttSubscribePacket(topic, pktIdCounter++));
           }
         },
         unsubscribe(topic) {
-          subs.delete(topic);
           if (sock && sock.readyState === WebSocket.OPEN && mqttConnAcked) {
             sock.send(buildMqttUnsubscribePacket(topic, pktIdCounter++));
           }
         },
-        publish(topic, objOrStr, retain = false) {
-          const str = typeof objOrStr === 'string' ? objOrStr : JSON.stringify(objOrStr);
+        publish(topic, str, retain = false) {
           if (sock && sock.readyState === WebSocket.OPEN && mqttConnAcked) {
             try {
               sock.send(buildMqttPublishPacket(topic, str, retain));
@@ -3164,18 +3128,197 @@
       };
     }
 
+    /**
+     * Dual-Broker Active-Active MQTT Client (EMQX + HiveMQ simultaneously)
+     * Prevents Host and Guest from ever getting stranded on different brokers.
+     */
+    function createLightweightMqttClient(brokerUrls, onConnected, onTopicMessage, willConfig = null) {
+      handleMqttMessageRef.current = onTopicMessage || ((_t, _p) => {});
+      const subs = new Set();
+      let firedInitialConnect = false;
+
+      if (typeof window !== 'undefined' && window.mqtt && typeof window.mqtt.connect === 'function') {
+        const clients = [];
+
+        brokerUrls.forEach((url) => {
+          const cid = 'allin_' + myDeviceId + '_' + Math.random().toString(36).slice(2, 6);
+          const opts = {
+            clientId: cid,
+            clean: true,
+            keepalive: 25,
+            connectTimeout: 5000,
+            reconnectPeriod: 2000
+          };
+          if (willConfig && willConfig.topic && willConfig.payload) {
+            opts.will = {
+              topic: willConfig.topic,
+              payload: String(willConfig.payload),
+              qos: Number(willConfig.qos || 1),
+              retain: Boolean(willConfig.retain)
+            };
+          }
+
+          try {
+            const c = window.mqtt.connect(url, opts);
+            c.on('connect', () => {
+              updateRelayStatusBadges(true);
+              subs.forEach(t => {
+                try { c.subscribe(t, { qos: 1 }); } catch (_) {}
+              });
+              if (!firedInitialConnect) {
+                firedInitialConnect = true;
+                if (onConnected) onConnected();
+              } else if (netRole === 'host') {
+                saveAndBroadcastState();
+              }
+            });
+
+            c.on('message', (topic, payloadBuf) => {
+              try {
+                const payloadStr = typeof payloadBuf === 'string'
+                  ? payloadBuf
+                  : new TextDecoder().decode(payloadBuf);
+                if (shouldProcessIncomingPacket(payloadStr) && handleMqttMessageRef.current) {
+                  handleMqttMessageRef.current(topic, payloadStr);
+                }
+              } catch (_) {}
+            });
+
+            c.on('close', () => {
+              const anyStillOpen = clients.some(cl => cl && cl.connected);
+              updateRelayStatusBadges(anyStillOpen);
+            });
+
+            c.on('error', () => {});
+            clients.push(c);
+          } catch (_) {}
+        });
+
+        return {
+          subscribe(topic) {
+            subs.add(topic);
+            clients.forEach(c => {
+              if (c) {
+                try { c.subscribe(topic, { qos: 1 }); } catch (_) {}
+              }
+            });
+          },
+          unsubscribe(topic) {
+            subs.delete(topic);
+            clients.forEach(c => {
+              if (c) {
+                try { c.unsubscribe(topic); } catch (_) {}
+              }
+            });
+          },
+          publish(topic, objOrStr, retain = false) {
+            let payloadObj = objOrStr;
+            if (payloadObj && typeof payloadObj === 'object' && !payloadObj._pktId) {
+              payloadObj = {
+                ...payloadObj,
+                _pktId: myDeviceId + '_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6)
+              };
+            }
+            const str = typeof payloadObj === 'string' ? payloadObj : JSON.stringify(payloadObj);
+            let anyPublished = false;
+            clients.forEach(c => {
+              if (c) {
+                try {
+                  c.publish(topic, str, { qos: 1, retain: Boolean(retain) });
+                  anyPublished = true;
+                } catch (_) {}
+              }
+            });
+            return anyPublished;
+          },
+          isOpen() {
+            return clients.some(c => Boolean(c && c.connected));
+          },
+          close() {
+            clients.forEach(c => {
+              try { if (c) c.end(true); } catch (_) {}
+            });
+          }
+        };
+      }
+
+      // Native WebSocket MQTT v3.1.1 Active-Active Fallback across all brokers
+      const links = brokerUrls.map(url =>
+        createSingleNativeWsMqttLink(
+          url,
+          subs,
+          willConfig,
+          () => {
+            updateRelayStatusBadges(true);
+            if (!firedInitialConnect) {
+              firedInitialConnect = true;
+              if (onConnected) onConnected();
+            } else if (netRole === 'host') {
+              saveAndBroadcastState();
+            }
+          },
+          () => {
+            const anyOpen = links.some(l => l.isOpen());
+            updateRelayStatusBadges(anyOpen);
+          }
+        )
+      );
+
+      return {
+        subscribe(topic) {
+          subs.add(topic);
+          links.forEach(l => l.subscribe(topic));
+        },
+        unsubscribe(topic) {
+          subs.delete(topic);
+          links.forEach(l => l.unsubscribe(topic));
+        },
+        publish(topic, objOrStr, retain = false) {
+          let payloadObj = objOrStr;
+          if (payloadObj && typeof payloadObj === 'object' && !payloadObj._pktId) {
+            payloadObj = {
+              ...payloadObj,
+              _pktId: myDeviceId + '_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6)
+            };
+          }
+          const str = typeof payloadObj === 'string' ? payloadObj : JSON.stringify(payloadObj);
+          let ok = false;
+          links.forEach(l => {
+            if (l.publish(topic, str, retain)) ok = true;
+          });
+          return ok;
+        },
+        isOpen() {
+          return links.some(l => l.isOpen());
+        },
+        close() {
+          links.forEach(l => l.close());
+        }
+      };
+    }
+
     function broadcastGameState(eventCue = null) {
       saveAndBroadcastState(eventCue);
     }
 
     function saveAndBroadcastState(eventCue = null) {
-      state.phase = state.status === 'PLAYING' ? 'game' : state.status === 'CHAMPION' ? 'champion' : 'lobby';
+      const playing = isPlayingStatus(state.status);
+      const champion = isChampionStatus(state);
+      state.status = playing ? 'playing' : champion ? 'champion' : 'lobby';
+      state.phase = playing ? 'game' : champion ? 'champion' : 'lobby';
       state.screen = state.phase;
+
       const currentActor = state.players[state.turnIdx];
-      state.currentTurnPlayerId = (state.status === 'PLAYING' && state.streetIndex < 4 && currentActor) ? currentActor.id : null;
-      state.pot = getTotalPot();
-      state.sidePots = state.pots;
-      state.street = STREETS[state.streetIndex] || 'Pre-Flop';
+      state.currentTurnPlayerId = (playing && state.streetIndex < 4 && currentActor) ? currentActor.id : null;
+
+      if (playing || champion) {
+        state.pot = getTotalPot();
+        state.sidePots = state.pots;
+        state.street = STREETS[state.streetIndex] || 'Pre-Flop';
+      } else {
+        delete state.pot;
+        delete state.street;
+      }
       state.highestBet = state.currentBet;
       state.minRaise = state.minRaiseDelta;
 
@@ -3186,7 +3329,8 @@
       if (netRole === 'host') {
         const packet = {
           type: 'SYNC_STATE',
-          syncType: state.status === 'LOBBY' ? 'LOBBY_STATE' : 'GAME_STATE',
+          syncType: playing ? 'GAME_STATE' : 'LOBBY_STATE',
+          status: state.status,
           screen: state.screen,
           phase: state.phase,
           room: state.roomCode,
@@ -3198,7 +3342,6 @@
           minRaise: state.minRaise,
           players: state.players,
           gameState: state,
-          state,
           eventCue,
           ts: Date.now()
         };
@@ -3217,7 +3360,7 @@
         if (netRole === 'host' && mqttClient && mqttClient.isOpen()) {
           saveAndBroadcastState(null);
         }
-      }, 2200);
+      }, 2000);
     }
 
     function pushUndoSnapshot() {
@@ -3290,7 +3433,11 @@
       localStorage.setItem(CLIENT_ROLE_KEY, 'host');
       clearInterval(clientJoinRetryTimer);
       clearInterval(clientHeartbeatTimer);
-      state.status = 'LOBBY';
+      state.status = 'lobby';
+      state.phase = 'lobby';
+      state.screen = 'lobby';
+      delete state.pot;
+      delete state.street;
       if (!state.roomCode || state.roomCode === 'MAIN') {
         roomCode = localStorage.getItem(ROOM_CODE_KEY) || generateRandomRoomCode();
         state.roomCode = roomCode;
@@ -3437,7 +3584,7 @@
         isRemote: p.mode === 'wifi' && !p.takenOverByHost,
         isConnected: p.isConnected !== undefined ? p.isConnected : true
       }));
-      state.status = 'PLAYING';
+      state.status = 'playing';
       state.phase = 'game';
       state.screen = 'game';
       state.handNumber = 0;
@@ -3447,8 +3594,8 @@
       startNewHand(false);
       startHostContinuousSync();
       // Immediately send redundant SYNC_STATE pulses so no Guest phone misses game start
-      setTimeout(() => saveAndBroadcastState('CHIP_THROW'), 250);
-      setTimeout(() => saveAndBroadcastState(null), 800);
+      setTimeout(() => saveAndBroadcastState('CHIP_THROW'), 200);
+      setTimeout(() => saveAndBroadcastState(null), 650);
     }
 
     function resetTableNewGame() {
@@ -3462,8 +3609,9 @@
         p.totalCommitted = 0;
         p.lastAction = '';
       });
-      state.status = 'PLAYING';
+      state.status = 'playing';
       state.phase = 'game';
+      state.screen = 'game';
       state.handNumber = 0;
       state.dealerIdx = 0;
       undoHistory = [];
@@ -3524,7 +3672,7 @@
       if (idx === -1) return;
       const player = state.players[idx];
 
-      if (state.status === 'LOBBY') {
+      if (isLobbyStatus(state)) {
         // In Waiting Lobby: immediately remove player and broadcast updated LOBBY_STATE
         const leavingName = player.name;
         delete lastSeen[playerId];
@@ -3556,7 +3704,7 @@
           if (p.mode !== 'wifi') continue;
           const seenAt = lastSeen[p.id] || 0;
           if (seenAt > 0 && now - seenAt > 8000) {
-            if (state.status === 'LOBBY') {
+            if (isLobbyStatus(state)) {
               const name = p.name;
               delete lastSeen[p.id];
               state.players.splice(i, 1);
@@ -3582,10 +3730,10 @@
       const idx = state.players.findIndex(p => p.id === playerId);
       if (idx <= 0) return;
       const p = state.players[idx];
-      const wasTheirTurn = state.status === 'PLAYING' && state.turnIdx === idx;
+      const wasTheirTurn = isPlayingStatus(state.status) && state.turnIdx === idx;
       pushUndoSnapshot();
 
-      if (state.status === 'LOBBY') {
+      if (isLobbyStatus(state)) {
         state.players.splice(idx, 1);
         delete lastSeen[playerId];
         renderLobbySettingsAndRoster();
@@ -3653,7 +3801,7 @@
     function handleForceAction(targetPlayerId = null) {
       closeSheet('forceSkipSheet');
       closeSheet('hostDrawerSheet');
-      if (state.status !== 'PLAYING' || state.streetIndex === 4) return;
+      if (!isPlayingStatus(state.status) || state.streetIndex === 4) return;
       const actor = state.players[state.turnIdx];
       if (!actor) return;
       if (targetPlayerId && actor.id !== targetPlayerId) {
@@ -3699,11 +3847,25 @@
       });
     }
 
+    function onClientRoomCodeInput(inputEl) {
+      if (!inputEl) return;
+      const cleaned = inputEl.value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+      inputEl.value = cleaned;
+      if (cleaned.length >= 2 && mqttClient) {
+        mqttClient.subscribe(getClientsTopic(cleaned));
+      }
+    }
+
     function openJoinLobby() {
       netRole = 'client';
       localStorage.setItem(CLIENT_ROLE_KEY, 'client');
       clearInterval(hostPresenceWatchdogTimer);
       clearInterval(hostContinuousSyncTimer);
+      state.status = 'lobby';
+      state.phase = 'lobby';
+      state.screen = 'lobby';
+      delete state.pot;
+      delete state.street;
       showScreen('joinLobbyScreen');
       const codeInput = document.getElementById('clientRoomCodeInput');
       if (codeInput) {
@@ -3775,14 +3937,32 @@
 
       if (msg.type === 'PING' && msg.playerId) {
         const existing = state.players.find(p => p.id === msg.playerId);
-        if (existing && !existing.takenOverByHost && existing.isConnected === false) {
-          existing.isConnected = true;
-          renderLobbySettingsAndRoster();
-          renderAll();
-          saveAndBroadcastState();
-          showToast(`🟢 ${existing.name} reconnected!`);
+        if (existing) {
+          let needsSync = false;
+          if (!existing.takenOverByHost && existing.isConnected === false) {
+            existing.isConnected = true;
+            needsSync = true;
+            showToast(`🟢 ${existing.name} reconnected!`);
+          }
+          // If Guest reports it is still on lobby screen while Host game is active, immediately push state
+          const guestStillInLobby =
+            String(msg.clientStatus || '').toLowerCase() === 'lobby' ||
+            msg.clientScreen === 'joinLobbyScreen';
+          if (guestStillInLobby && computeIsGameActive(state, activeScreen)) {
+            needsSync = true;
+          }
+          if (needsSync) {
+            renderLobbySettingsAndRoster();
+            renderAll();
+            saveAndBroadcastState();
+          }
+          return;
+        } else if (msg.name && state.players.length < 10) {
+          // Guest sent heartbeat with name before initial JOIN reached Host -> auto-seat them
+          msg.type = 'JOIN';
+        } else {
+          return;
         }
-        return;
       }
 
       if ((msg.type === 'PLAYER_LEFT' || msg.type === 'PLAYER_DISCONNECTED') && msg.playerId) {
@@ -3793,17 +3973,18 @@
       if ((msg.type === 'JOIN' || msg.type === 'JOIN_REQUEST' || msg.type === 'LOBBY_JOIN') && msg.name && msg.playerId) {
         const existing = state.players.find(p => p.id === msg.playerId);
         let isNewPlayer = false;
+        const playingNow = isPlayingStatus(state.status);
         if (existing) {
           existing.name = msg.name;
           // Only restore to Wi-Fi remote mode if Host hasn't taken over the seat mid-game (or if in Lobby / explicit rejoin)
-          if (state.status === 'LOBBY' || !existing.takenOverByHost || msg.explicitRejoin) {
+          if (isLobbyStatus(state) || !existing.takenOverByHost || msg.explicitRejoin) {
             const wasOffline = existing.isConnected === false || existing.takenOverByHost;
             existing.mode = 'wifi';
             existing.isLocal = false;
             existing.isRemote = true;
             existing.takenOverByHost = false;
             existing.isConnected = true;
-            if (wasOffline && state.status !== 'LOBBY') {
+            if (wasOffline && playingNow) {
               showToast(`🟢 ${msg.name} rejoined their seat!`);
             }
           }
@@ -3822,10 +4003,10 @@
             stack: state.startingStack,
             streetBet: 0,
             totalCommitted: 0,
-            folded: state.status === 'PLAYING',
+            folded: playingNow,
             allIn: false,
-            acted: state.status === 'PLAYING',
-            lastAction: state.status === 'PLAYING' ? 'NEXT HAND' : ''
+            acted: playingNow,
+            lastAction: playingNow ? 'NEXT HAND' : ''
           });
         }
         if (isNewPlayer) {
@@ -3927,26 +4108,25 @@
               return `<span style="font-size:0.72rem; font-weight:800; padding:4px 9px; border-radius:999px; background:${isMe ? 'rgba(16,185,129,0.22)' : 'var(--surface-3)'}; border:1px solid ${isMe ? 'var(--emerald)' : 'var(--border-subtle)'}; color:${isMe ? '#6EE7B7' : 'var(--text-primary)'};">#${idx + 1} ${escapeHtml(pl.name)}${isMe ? ' (YOU)' : ''}</span>`;
             }).join('');
           }
-        } else if (pendingClientName && state.status === 'LOBBY') {
+        } else if (pendingClientName && isLobbyStatus(state)) {
           publishClientJoinPacket(state.roomCode || roomCode, pendingClientName, false);
         }
 
-        const isGamePhase =
+        // Fix A: Derive whether the Game Table should be shown directly from gameState
+        const isGameActive =
           msg.screen === 'game' ||
           msg.phase === 'game' ||
-          state.screen === 'game' ||
-          state.phase === 'game' ||
-          state.status === 'PLAYING';
+          computeIsGameActive(state, msg.screen || msg.phase);
 
-        if (isGamePhase) {
-          state.status = 'PLAYING';
+        if (isGameActive) {
+          state.status = 'playing';
           state.phase = 'game';
           state.screen = 'game';
           showScreen(null);
-        } else if (state.status === 'CHAMPION' || msg.phase === 'champion' || msg.screen === 'champion') {
+        } else if (isChampionStatus(state) || msg.phase === 'champion' || msg.screen === 'champion') {
           const champ = state.players.find(p => !p.isSpectator && p.stack > 0) || state.players[0];
           showChampionCelebration(champ);
-        } else if (state.status === 'LOBBY' && netRole === 'client') {
+        } else if (isLobbyStatus(state) && netRole === 'client') {
           showScreen('joinLobbyScreen');
         }
 
@@ -3954,7 +4134,7 @@
         const newTurnActor = state.players[state.turnIdx];
         const turnKey = `${state.handNumber}_${state.streetIndex}_${state.turnIdx}_${state.currentBet}`;
         if (
-          isGamePhase &&
+          isGameActive &&
           state.streetIndex < 4 &&
           newTurnActor &&
           newTurnActor.id === myDeviceId &&
@@ -4060,7 +4240,9 @@
           type: 'PING',
           room: targetRoom,
           playerId: myDeviceId,
-          name: pendingClientName
+          name: pendingClientName,
+          clientStatus: state.status,
+          clientScreen: activeScreen
         };
         if (mqttClient) {
           mqttClient.publish(getHostTopic(targetRoom), pingPayload, false);
@@ -4068,7 +4250,7 @@
         if (wsConnection && wsConnection.readyState === WebSocket.OPEN) {
           try { wsConnection.send(JSON.stringify(pingPayload)); } catch (_) {}
         }
-      }, 3000);
+      }, 2500);
     }
 
     function connectWebSocketAsClient(targetRoomCode, playerName, explicitRejoin = false) {
@@ -4555,7 +4737,7 @@
        8. 60FPS STAGGERED CHIP TOSS, PULL-BACK & POT SWEEP
        ========================================================== */
     function isMyTurnToAct() {
-      if (state.status !== 'PLAYING' || state.streetIndex === 4) return false;
+      if (!isPlayingStatus(state.status) || state.streetIndex === 4) return false;
       const actor = state.players[state.turnIdx];
       if (!actor || actor.folded || actor.isSpectator || actor.allIn) return false;
       if (netRole === 'client') {
@@ -5280,6 +5462,10 @@
        11. UI RENDERING (TOP POT, TABLE RING, STAGING PILE & RACK)
        ========================================================== */
     function renderAll() {
+      // Fix A: Ensure Guest phones always derive screen visibility directly from gameState
+      if (netRole === 'client' && computeIsGameActive(state, activeScreen) && activeScreen !== 'game') {
+        showScreen(null);
+      }
       renderTopZone();
       renderTableRing();
       renderStagingPileAndDock();
@@ -5496,7 +5682,7 @@
 
       // Update Turn Waiting Banner for Guests (when not their turn) and Host (when waiting on a Wi-Fi Guest's phone)
       if (waitBanner && waitPrimary && waitRight) {
-        if (state.status === 'PLAYING' && state.streetIndex < 4 && actor && !canAct) {
+        if (isPlayingStatus(state.status) && state.streetIndex < 4 && actor && !canAct) {
           waitBanner.classList.add('visible');
           if (netRole === 'client') {
             const takenNote = (actor.id === myDeviceId && actor.takenOverByHost) ? ' (Host took local control)' : '';
@@ -5600,6 +5786,10 @@
        12. INITIALIZATION & QR DEEP-LINK / AUTO-REJOIN DETECTION
        ========================================================== */
     window.addEventListener('DOMContentLoaded', () => {
+      document.querySelectorAll('[data-version-badge]').forEach(el => {
+        el.textContent = APP_VERSION;
+      });
+
       const params = new URLSearchParams(location.search);
       if (params.get('room')) {
         roomCode = params.get('room').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
@@ -5624,16 +5814,17 @@
             state = parsed;
             if (state.roomCode) roomCode = state.roomCode;
             const lastRole = localStorage.getItem(CLIENT_ROLE_KEY);
+            const activeNow = computeIsGameActive(state, state.screen || state.phase);
             if (lastRole === 'client' && pendingClientName && state.players.some(p => p.id === myDeviceId)) {
               // Auto-rejoin Guest seat after refresh
               netRole = 'client';
               connectWebSocketAsClient(roomCode, pendingClientName);
-              if (state.status === 'PLAYING') {
+              if (activeNow) {
                 showScreen(null);
               } else {
                 showScreen('joinLobbyScreen');
               }
-            } else if (state.status === 'PLAYING') {
+            } else if (activeNow) {
               document.getElementById('resumeGameBtn').style.display = 'inline-block';
             }
           }
@@ -5643,9 +5834,22 @@
       renderAll();
     });
 
+    // Purge any legacy cached builds and register Network-First Service Worker (poker-chips-v1.4.0)
+    if ('caches' in window) {
+      caches.keys().then(keys => {
+        keys.forEach(k => {
+          if (k !== 'poker-chips-v1.4.0') caches.delete(k);
+        });
+      }).catch(() => {});
+    }
+
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js').catch(() => {});
+        navigator.serviceWorker.register('./sw.js?v=1.4.0', { updateViaCache: 'none' })
+          .then(reg => {
+            try { reg.update(); } catch (_) {}
+          })
+          .catch(() => {});
       });
     }
   </script>

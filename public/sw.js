@@ -1,4 +1,4 @@
-const CACHE_NAME = 'all-in-poker-chips-v1';
+const CACHE_NAME = 'poker-chips-v1.4.0';
 const APP_SHELL = [
   './',
   './index.html',
@@ -32,41 +32,30 @@ self.addEventListener('fetch', (event) => {
   // Skip live local hotspot API calls so LAN IP discovery stays real-time when server.js is running
   if (url.pathname.startsWith('/api/')) return;
 
+  // Network-First with Cache Fallback so phones on Vercel always load the latest deployed build (v1.4.0+)
   event.respondWith(
-    caches.match(event.request, { ignoreSearch: true }).then((cachedResponse) => {
-      if (cachedResponse) {
-        // Refresh cache in background when network is available
-        fetch(event.request)
-          .then((netRes) => {
-            if (netRes && netRes.status === 200 && netRes.type === 'basic') {
-              const clone = netRes.clone();
-              caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
-            }
-          })
-          .catch(() => {});
-        return cachedResponse;
-      }
-
-      return fetch(event.request)
-        .then((networkResponse) => {
-          if (
-            networkResponse &&
-            networkResponse.status === 200 &&
-            (networkResponse.type === 'basic' || networkResponse.type === 'cors')
-          ) {
-            const responseToCache = networkResponse.clone();
-            caches.open(CACHE_NAME).then((cache) => {
-              cache.put(event.request, responseToCache);
-            });
-          }
-          return networkResponse;
-        })
-        .catch(() => {
+    fetch(event.request, { cache: 'no-store' })
+      .then((networkResponse) => {
+        if (
+          networkResponse &&
+          networkResponse.status === 200 &&
+          (networkResponse.type === 'basic' || networkResponse.type === 'cors')
+        ) {
+          const responseToCache = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(event.request, responseToCache);
+          });
+        }
+        return networkResponse;
+      })
+      .catch(() => {
+        return caches.match(event.request, { ignoreSearch: true }).then((cachedResponse) => {
+          if (cachedResponse) return cachedResponse;
           if (event.request.mode === 'navigate') {
             return caches.match('./index.html', { ignoreSearch: true });
           }
           return new Response('', { status: 408, statusText: 'Offline' });
         });
-    })
+      })
   );
 });
