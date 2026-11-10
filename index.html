@@ -1501,6 +1501,92 @@
       opacity: 1;
       transform: translate3d(-50%, 0, 0);
     }
+
+    .you-seat-pill {
+      position: absolute;
+      top: -9px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--emerald);
+      color: #032218;
+      font-size: 0.56rem;
+      font-weight: 900;
+      letter-spacing: 0.08em;
+      padding: 1px 6px;
+      border-radius: 999px;
+      border: 1px solid #0B1311;
+      text-transform: uppercase;
+      white-space: nowrap;
+      z-index: 4;
+    }
+
+    .disconnected-seat-pill {
+      font-size: 0.58rem;
+      font-weight: 900;
+      color: #FCA5A5;
+      background: rgba(239, 68, 68, 0.2);
+      border: 1px solid rgba(239, 68, 68, 0.55);
+      border-radius: 999px;
+      padding: 1px 6px;
+      margin-top: 2px;
+      white-space: nowrap;
+    }
+
+    .turn-wait-banner {
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin: 0 12px 6px;
+      padding: 9px 13px;
+      border-radius: 14px;
+      background: rgba(19, 32, 28, 0.94);
+      border: 1px solid var(--border-bright);
+      font-size: 0.78rem;
+      color: var(--text-primary);
+    }
+
+    .turn-wait-banner.visible {
+      display: flex;
+    }
+
+    .leave-room-pill-btn {
+      display: none;
+      align-items: center;
+      gap: 5px;
+      height: 32px;
+      padding: 0 11px;
+      border-radius: 999px;
+      background: rgba(239, 68, 68, 0.16);
+      border: 1px solid rgba(239, 68, 68, 0.45);
+      color: #FCA5A5;
+      font-size: 0.72rem;
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    .room-code-edit-wrap {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      background: var(--surface-3);
+      border: 1px solid var(--border-bright);
+      border-radius: 8px;
+      padding: 2px 6px;
+    }
+
+    .room-code-inline-input {
+      width: 78px;
+      font-family: var(--font-mono);
+      font-size: 0.82rem;
+      font-weight: 900;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--gold);
+      background: transparent;
+      border: none;
+      outline: none;
+    }
   </style>
 </head>
 <body>
@@ -1557,13 +1643,18 @@
         </button>
       </div>
 
-      <!-- Built-In Scannable Offline QR Code -->
+      <!-- Built-In Scannable Offline QR Code + Customizable Room Code -->
       <div class="qr-banner">
         <div id="qrCodeContainer" class="qr-svg-wrap" title="Scan with phone camera to join"></div>
         <div class="qr-info">
           <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
             <span id="qrRoomCodeTag" class="qr-room-tag">ROOM: POKR</span>
-            <button onclick="regenerateRoomCode()" style="font-size:0.65rem; font-weight:800; color:var(--text-secondary); background:var(--surface-3); border:1px solid var(--border-subtle); border-radius:6px; padding:2px 6px;">New Code</button>
+            <div class="room-code-edit-wrap" title="Customize 3-8 character Room Code">
+              <span>✏️</span>
+              <input id="hostCustomRoomInput" class="room-code-inline-input" type="text" maxlength="8" value="POKR" placeholder="CODE" oninput="this.value = this.value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase()" onkeydown="if(event.key==='Enter'){applyCustomRoomCode();}" />
+              <button onclick="applyCustomRoomCode()" style="font-size:0.65rem; font-weight:900; color:#032218; background:var(--emerald); border-radius:5px; padding:2px 6px; cursor:pointer;">Set</button>
+            </div>
+            <button onclick="regenerateRoomCode()" style="font-size:0.65rem; font-weight:800; color:var(--text-secondary); background:var(--surface-3); border:1px solid var(--border-subtle); border-radius:6px; padding:2px 6px; cursor:pointer;">🎲</button>
           </div>
           <span class="qr-headline">Scan or Enter Room Code</span>
           <span id="qrJoinUrlText" class="qr-url-text">Connecting cloud relay...</span>
@@ -1596,7 +1687,7 @@
   <section id="joinLobbyScreen" class="screen-overlay">
     <div class="lobby-card">
       <div class="lobby-top-bar">
-        <button class="lobby-back-btn" onclick="showScreen('homeScreen')">← Home</button>
+        <button class="lobby-back-btn" onclick="leaveRoomAsGuest()">← Leave</button>
         <span class="lobby-title">Join Friend's Table</span>
         <span id="clientRelayStatusBadge" style="font-size:0.68rem; font-weight:800; padding:4px 8px; border-radius:999px; background:rgba(16,185,129,0.12); border:1px solid rgba(16,185,129,0.35); color:#A7F3D0; white-space:nowrap;">🟡 Connecting...</span>
       </div>
@@ -1608,8 +1699,8 @@
         </div>
 
         <div style="background:var(--surface-2); border:1px solid var(--border-subtle); border-radius:14px; padding:10px 12px;">
-          <div class="cycle-pill-label" style="margin-bottom:4px;">4-Letter Room Code (Auto-filled from QR)</div>
-          <input id="clientRoomCodeInput" type="text" maxlength="8" placeholder="POKR" style="font-family:var(--font-mono); font-size:1.15rem; font-weight:900; letter-spacing:0.14em; text-transform:uppercase; width:100%; color:var(--gold);" />
+          <div class="cycle-pill-label" style="margin-bottom:4px;">Room Code (Auto-filled from QR or Custom)</div>
+          <input id="clientRoomCodeInput" type="text" maxlength="8" placeholder="POKR" oninput="this.value = this.value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase()" style="font-family:var(--font-mono); font-size:1.15rem; font-weight:900; letter-spacing:0.14em; text-transform:uppercase; width:100%; color:var(--gold);" />
         </div>
 
         <button id="clientJoinSubmitBtn" class="start-game-night-btn" onclick="submitClientJoinLobby()">
@@ -1619,6 +1710,8 @@
         <div id="clientWaitingBox" style="display:none; text-align:center; padding:14px; border-radius:14px; background:var(--surface-2); border:1px solid var(--emerald);">
           <div id="clientWaitingTitle" style="font-weight:800; color:var(--emerald); font-size:0.95rem;">✓ Handshaking with Host...</div>
           <div id="clientWaitingSub" style="font-size:0.8rem; color:var(--text-secondary); margin-top:4px;">Waiting for the Host to tap START GAME NIGHT...</div>
+          <div id="clientLobbyRosterPreview" style="margin-top:8px; display:flex; flex-wrap:wrap; gap:6px; justify-content:center;"></div>
+          <button onclick="leaveRoomAsGuest()" style="margin-top:10px; font-size:0.75rem; font-weight:800; color:#FCA5A5; background:rgba(239,68,68,0.15); border:1px solid rgba(239,68,68,0.4); border-radius:999px; padding:5px 14px; cursor:pointer;">🚪 Leave Room</button>
         </div>
       </div>
     </div>
@@ -1660,9 +1753,13 @@
   <div class="app-viewport">
     <!-- 1. TOP ZONE: THE ACTIVE POT -->
     <header class="top-zone">
-      <button class="room-pill-btn" onclick="openHostLobby()" title="Lobby & QR Code">
+      <button id="topLobbyBtn" class="room-pill-btn" onclick="openHostLobby()" title="Lobby & QR Code">
         <span class="live-dot"></span>
         <span id="topRoomLabel">Lobby</span>
+      </button>
+      <button id="topGuestLeaveBtn" class="leave-room-pill-btn" onclick="leaveRoomAsGuest()" title="Leave Table">
+        <span>🚪</span>
+        <span>Leave</span>
       </button>
 
       <div class="pot-label-row">
@@ -1679,7 +1776,7 @@
       <div id="sidePotsBar" class="side-pots-bar"></div>
 
       <!-- 1-Tap Host Crown/Gear Icon -->
-      <button class="host-drawer-btn" onclick="openHostDrawer()" aria-label="Host Controls">
+      <button id="topHostCrownBtn" class="host-drawer-btn" onclick="openHostDrawer()" aria-label="Host Controls">
         👑
       </button>
     </header>
@@ -1710,7 +1807,7 @@
       <div id="seatsLayer" class="seats-layer"></div>
     </main>
 
-    <!-- 3. BOTTOM ZONE: SPECTATOR BANNER OR QUICK-FILL PILLS + 3D CHIP RACK + ACTION BAR -->
+    <!-- 3. BOTTOM ZONE: SPECTATOR BANNER, TURN STATUS BANNER, OR QUICK-FILL PILLS + 3D CHIP RACK + ACTION BAR -->
     <div>
       <!-- Connected Wi-Fi Phone Spectator Banner -->
       <div id="spectatorClientBanner" class="spectator-client-banner">
@@ -1719,6 +1816,12 @@
           <div style="font-size:0.74rem; color:var(--text-secondary); margin-top:2px;">Watching live table action</div>
         </div>
         <button class="request-rebuy-btn" onclick="sendClientRebuyRequest()">👋 Request Rebuy</button>
+      </div>
+
+      <!-- Turn Waiting / Remote Guest Status Banner -->
+      <div id="turnWaitBanner" class="turn-wait-banner">
+        <div id="turnWaitPrimaryText" style="font-weight:800; color:var(--text-primary);">⏳ Waiting for Player...</div>
+        <div id="turnWaitRightZone" style="display:flex; align-items:center; gap:6px; font-family:var(--font-mono); font-size:0.76rem; color:var(--emerald); font-weight:800;"></div>
       </div>
 
       <footer id="actionDock" class="bottom-zone">
@@ -1797,6 +1900,14 @@
           <span class="host-card-title">Next Street / Skip</span>
           <span class="host-card-sub">Advance street or skip AFK</span>
         </button>
+      </div>
+
+      <!-- Disconnected / Remote Wi-Fi Players Quick Recovery List -->
+      <div id="hostDisconnectedPlayersSection" style="display:none; margin-top:12px; padding-top:10px; border-top:1px solid var(--border-subtle);">
+        <div style="font-size:0.74rem; font-weight:900; text-transform:uppercase; letter-spacing:0.08em; color:#FCA5A5; margin-bottom:6px;">
+          ⚠️ Disconnected / Remote Phone Seats
+        </div>
+        <div id="hostDisconnectedPlayersList" style="display:flex; flex-direction:column; gap:6px;"></div>
       </div>
     </div>
   </div>
@@ -2527,6 +2638,9 @@
     }
 
     const ROOM_CODE_KEY = 'felt_room_code_v3';
+    const CLIENT_NAME_KEY = 'felt_client_name_v3';
+    const CLIENT_ROLE_KEY = 'felt_last_role_v3';
+
     function generateRandomRoomCode() {
       const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
       let code = '';
@@ -2542,8 +2656,14 @@
     let relayConnected = false;
     let activeBrokerIndex = 0;
     let clientJoinRetryTimer = null;
+    let clientHeartbeatTimer = null;
+    let hostPresenceWatchdogTimer = null;
     let clientHasJoinedRoster = false;
-    let pendingClientName = '';
+    let pendingClientName = localStorage.getItem(CLIENT_NAME_KEY) || '';
+    let lastNotifiedTurnKey = '';
+
+    // Host tracks lastSeen[playerId] = timestamp (ms) for 3s heartbeat / 8s timeout detection
+    const lastSeen = {};
 
     const MQTT_BROKERS = [
       'wss://broker.emqx.io:8084/mqtt',
@@ -2555,6 +2675,7 @@
 
     let state = {
       status: 'LOBBY',
+      phase: 'lobby',
       roomCode: roomCode,
       startingStack: 1000,
       smallBlind: 5,
@@ -2569,8 +2690,8 @@
       minRaiseDelta: 10,
       pots: [{ amount: 0, eligibleIds: [] }],
       players: [
-        { id: 'host_1', name: 'Host (You)', mode: 'host', status: 'active', isSpectator: false, stack: 1000, streetBet: 0, totalCommitted: 0, folded: false, allIn: false, acted: false, lastAction: '' },
-        { id: 'local_2', name: 'Alex', mode: 'local', status: 'active', isSpectator: false, stack: 1000, streetBet: 0, totalCommitted: 0, folded: false, allIn: false, acted: false, lastAction: '' }
+        { id: 'host_1', name: 'Host (You)', mode: 'host', isLocal: true, isConnected: true, status: 'active', isSpectator: false, stack: 1000, streetBet: 0, totalCommitted: 0, folded: false, allIn: false, acted: false, lastAction: '' },
+        { id: 'local_2', name: 'Alex', mode: 'local', isLocal: true, isConnected: true, status: 'active', isSpectator: false, stack: 1000, streetBet: 0, totalCommitted: 0, folded: false, allIn: false, acted: false, lastAction: '' }
       ]
     };
 
@@ -2645,8 +2766,7 @@
 
     /* ==========================================================
        ZERO-DEPENDENCY NATIVE MQTT v3.1.1 OVER WSS ENGINE
-       Works with wss://broker.emqx.io:8084/mqtt & HiveMQ fallback
-       even if external CDN scripts are blocked or cached offline.
+       Supports Last Will & Testament (LWT), Retain, Subscribe & Unsubscribe.
        ========================================================== */
     function encodeMqttRemainingLength(len) {
       const bytes = [];
@@ -2668,22 +2788,45 @@
       return out;
     }
 
-    function buildMqttConnectPacket(clientId) {
+    function buildMqttConnectPacket(clientId, willConfig = null) {
       const protoName = encodeMqttUtf8('MQTT');
       const protoLevel = 0x04; // v3.1.1
-      const connectFlags = 0x02; // Clean session
+      let connectFlags = 0x02; // Clean session
+      let willTopicBytes = new Uint8Array(0);
+      let willMessageBytes = new Uint8Array(0);
+
+      if (willConfig && willConfig.topic && willConfig.payload) {
+        connectFlags |= 0x04; // Will Flag (Bit 2)
+        const qos = Number(willConfig.qos || 0) & 0x03;
+        connectFlags |= (qos << 3);
+        if (willConfig.retain) connectFlags |= 0x20;
+        willTopicBytes = encodeMqttUtf8(willConfig.topic);
+        willMessageBytes = encodeMqttUtf8(String(willConfig.payload));
+      }
+
       const keepAliveHi = 0x00;
-      const keepAliveLo = 0x3c; // 60s
+      const keepAliveLo = 0x1e; // 30s keep-alive for responsive LWT trigger
       const clientIdBytes = encodeMqttUtf8(clientId);
 
-      const varHeaderAndPayload = new Uint8Array(protoName.length + 4 + clientIdBytes.length);
+      const totalVarLen =
+        protoName.length +
+        4 +
+        clientIdBytes.length +
+        willTopicBytes.length +
+        willMessageBytes.length;
+
+      const varHeaderAndPayload = new Uint8Array(totalVarLen);
       let offset = 0;
       varHeaderAndPayload.set(protoName, offset); offset += protoName.length;
       varHeaderAndPayload[offset++] = protoLevel;
       varHeaderAndPayload[offset++] = connectFlags;
       varHeaderAndPayload[offset++] = keepAliveHi;
       varHeaderAndPayload[offset++] = keepAliveLo;
-      varHeaderAndPayload.set(clientIdBytes, offset);
+      varHeaderAndPayload.set(clientIdBytes, offset); offset += clientIdBytes.length;
+      if (willTopicBytes.length > 0) {
+        varHeaderAndPayload.set(willTopicBytes, offset); offset += willTopicBytes.length;
+        varHeaderAndPayload.set(willMessageBytes, offset); offset += willMessageBytes.length;
+      }
 
       const remBytes = encodeMqttRemainingLength(varHeaderAndPayload.length);
       const pkt = new Uint8Array(1 + remBytes.length + varHeaderAndPayload.length);
@@ -2708,6 +2851,20 @@
       return pkt;
     }
 
+    function buildMqttUnsubscribePacket(topic, packetId = 1) {
+      const topicBytes = encodeMqttUtf8(topic);
+      const bodyLen = 2 + topicBytes.length;
+      const remBytes = encodeMqttRemainingLength(bodyLen);
+      const pkt = new Uint8Array(1 + remBytes.length + bodyLen);
+      let idx = 0;
+      pkt[idx++] = 0xa2; // UNSUBSCRIBE
+      remBytes.forEach(b => { pkt[idx++] = b; });
+      pkt[idx++] = (packetId >> 8) & 0xff;
+      pkt[idx++] = packetId & 0xff;
+      pkt.set(topicBytes, idx);
+      return pkt;
+    }
+
     function buildMqttPublishPacket(topic, payloadStr, retain = false) {
       const topicBytes = encodeMqttUtf8(topic);
       const payloadBytes = new TextEncoder().encode(payloadStr);
@@ -2722,7 +2879,7 @@
       return pkt;
     }
 
-    function createLightweightMqttClient(brokerUrls, onConnected, onTopicMessage) {
+    function createLightweightMqttClient(brokerUrls, onConnected, onTopicMessage, willConfig = null) {
       let currentIdx = 0;
       let sock = null;
       let pingTimer = null;
@@ -2736,7 +2893,6 @@
         currentIdx = idx % brokerUrls.length;
         const url = brokerUrls[currentIdx];
 
-        // If global mqtt.js library is loaded, use it or native MQTT WebSocket seamlessly
         try {
           if (sock) {
             try { sock.close(); } catch (_) {}
@@ -2754,7 +2910,7 @@
 
         sock.onopen = () => {
           const cid = 'allin_' + myDeviceId + '_' + Math.random().toString(36).slice(2, 6);
-          sock.send(buildMqttConnectPacket(cid));
+          sock.send(buildMqttConnectPacket(cid, willConfig));
         };
 
         sock.onmessage = (ev) => {
@@ -2772,14 +2928,14 @@
             let pos = 1;
             let encodedByte = 0;
             do {
-              if (pos >= rxBuffer.length) return; // Wait for more bytes
+              if (pos >= rxBuffer.length) return;
               encodedByte = rxBuffer[pos++];
               remLen += (encodedByte & 127) * multiplier;
               multiplier *= 128;
             } while ((encodedByte & 128) !== 0);
 
             const totalPktLen = pos + remLen;
-            if (rxBuffer.length < totalPktLen) return; // Wait for full packet
+            if (rxBuffer.length < totalPktLen) return;
 
             const pktBody = rxBuffer.slice(pos, totalPktLen);
             rxBuffer = rxBuffer.slice(totalPktLen);
@@ -2798,7 +2954,7 @@
                 if (sock && sock.readyState === WebSocket.OPEN) {
                   sock.send(new Uint8Array([0xc0, 0x00])); // PINGREQ
                 }
-              }, 25000);
+              }, 15000);
               if (onConnected) onConnected();
             } else if (msgType === 3) {
               // PUBLISH
@@ -2839,6 +2995,12 @@
             sock.send(buildMqttSubscribePacket(topic, pktIdCounter++));
           }
         },
+        unsubscribe(topic) {
+          subs.delete(topic);
+          if (sock && sock.readyState === WebSocket.OPEN) {
+            sock.send(buildMqttUnsubscribePacket(topic, pktIdCounter++));
+          }
+        },
         publish(topic, objOrStr, retain = false) {
           const str = typeof objOrStr === 'string' ? objOrStr : JSON.stringify(objOrStr);
           if (sock && sock.readyState === WebSocket.OPEN) {
@@ -2860,15 +3022,37 @@
       };
     }
 
+    function broadcastGameState(eventCue = null) {
+      saveAndBroadcastState(eventCue);
+    }
+
     function saveAndBroadcastState(eventCue = null) {
+      state.phase = state.status === 'PLAYING' ? 'game' : state.status === 'CHAMPION' ? 'champion' : 'lobby';
+      const currentActor = state.players[state.turnIdx];
+      state.currentTurnPlayerId = (state.status === 'PLAYING' && state.streetIndex < 4 && currentActor) ? currentActor.id : null;
+      state.pot = getTotalPot();
+      state.sidePots = state.pots;
+      state.street = STREETS[state.streetIndex] || 'Pre-Flop';
+      state.highestBet = state.currentBet;
+      state.minRaise = state.minRaiseDelta;
+
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
       } catch (_) {}
+
       if (netRole === 'host') {
         const packet = {
-          type: state.status === 'LOBBY' ? 'LOBBY_STATE' : 'GAME_STATE',
-          syncType: 'STATE_SYNC',
+          type: 'STATE_UPDATE',
+          syncType: state.status === 'LOBBY' ? 'LOBBY_STATE' : 'GAME_STATE',
+          phase: state.phase,
           room: state.roomCode,
+          pot: state.pot,
+          sidePots: state.sidePots,
+          street: state.street,
+          currentTurnPlayerId: state.currentTurnPlayerId,
+          highestBet: state.highestBet,
+          minRaise: state.minRaise,
+          players: state.players,
           state,
           eventCue,
           ts: Date.now()
@@ -2916,19 +3100,47 @@
     }
 
     /* ==========================================================
-       5. PRE-GAME WAITING LOBBY & QR CODE FLOW
+       5. PRE-GAME WAITING LOBBY, CUSTOM ROOM CODE & QR FLOW
        ========================================================== */
-    function regenerateRoomCode() {
-      roomCode = generateRandomRoomCode();
-      state.roomCode = roomCode;
-      localStorage.setItem(ROOM_CODE_KEY, roomCode);
+    function switchHostRoomCode(newCode) {
+      const cleaned = String(newCode || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 8);
+      if (cleaned.length < 2) {
+        showToast('Room Code must be 2–8 letters/numbers');
+        return;
+      }
+      const oldCode = state.roomCode;
+      if (oldCode && oldCode !== cleaned && mqttClient && mqttClient.isOpen()) {
+        // Clear old retained state on old topic and unsubscribe from old room
+        mqttClient.publish(getClientsTopic(oldCode), '', true);
+        mqttClient.unsubscribe(getHostTopic(oldCode));
+        mqttClient.unsubscribe(getClientsTopic(oldCode));
+      }
+      roomCode = cleaned;
+      state.roomCode = cleaned;
+      localStorage.setItem(ROOM_CODE_KEY, cleaned);
       Sound.chipThrow(1.1);
       openHostLobby();
+      showToast(`Room Code set to ${cleaned}`);
+    }
+
+    function applyCustomRoomCode() {
+      const input = document.getElementById('hostCustomRoomInput');
+      if (!input) return;
+      switchHostRoomCode(input.value);
+    }
+
+    function regenerateRoomCode() {
+      const nextCode = generateRandomRoomCode();
+      const input = document.getElementById('hostCustomRoomInput');
+      if (input) input.value = nextCode;
+      switchHostRoomCode(nextCode);
     }
 
     async function openHostLobby() {
       netRole = 'host';
+      localStorage.setItem(CLIENT_ROLE_KEY, 'host');
       clearInterval(clientJoinRetryTimer);
+      clearInterval(clientHeartbeatTimer);
       state.status = 'LOBBY';
       if (!state.roomCode || state.roomCode === 'MAIN') {
         roomCode = localStorage.getItem(ROOM_CODE_KEY) || generateRandomRoomCode();
@@ -2937,6 +3149,9 @@
       } else {
         roomCode = state.roomCode.toUpperCase();
       }
+
+      const customInput = document.getElementById('hostCustomRoomInput');
+      if (customInput) customInput.value = state.roomCode;
 
       showScreen('hostLobbyScreen');
       renderLobbySettingsAndRoster();
@@ -2957,6 +3172,7 @@
       document.getElementById('qrCodeContainer').innerHTML = OfflineQR.toSVG(joinUrl);
 
       connectWebSocketAsHost();
+      startHostPresenceWatchdog();
     }
 
     function cycleStartingStack() {
@@ -2993,8 +3209,14 @@
         const row = document.createElement('div');
         row.className = 'lobby-player-row';
 
-        const badgeClass = p.mode === 'host' ? 'host-tag' : p.mode === 'wifi' ? 'wifi-tag' : 'local-tag';
-        const badgeText = p.mode === 'host' ? 'Host' : p.mode === 'wifi' ? 'Wi-Fi' : 'On My Phone';
+        const isWifi = p.mode === 'wifi';
+        const isOnline = isWifi ? p.isConnected !== false : true;
+        const badgeClass = p.mode === 'host' ? 'host-tag' : isWifi ? 'wifi-tag' : 'local-tag';
+        const badgeText = p.mode === 'host'
+          ? 'Host'
+          : isWifi
+            ? (isOnline ? '🟢 Phone' : '⚠️ Offline')
+            : 'On My Phone';
 
         row.innerHTML = `
           <span class="lobby-seat-num">#${idx + 1}</span>
@@ -3025,6 +3247,8 @@
         id: 'local_' + Date.now().toString(36) + '_' + nextNum,
         name: `Player ${nextNum}`,
         mode: 'local',
+        isLocal: true,
+        isConnected: true,
         status: 'active',
         isSpectator: false,
         stack: state.startingStack,
@@ -3042,6 +3266,8 @@
 
     function removeLobbyPlayer(idx) {
       if (idx <= 0) return;
+      const removed = state.players[idx];
+      if (removed) delete lastSeen[removed.id];
       state.players.splice(idx, 1);
       renderLobbySettingsAndRoster();
       saveAndBroadcastState();
@@ -3057,8 +3283,11 @@
         p.stack = state.startingStack;
         p.isSpectator = false;
         p.status = 'active';
+        p.isLocal = p.mode !== 'wifi';
+        if (p.isConnected === undefined) p.isConnected = true;
       });
       state.status = 'PLAYING';
+      state.phase = 'game';
       state.handNumber = 0;
       state.dealerIdx = 0;
       undoHistory = [];
@@ -3078,6 +3307,7 @@
         p.lastAction = '';
       });
       state.status = 'PLAYING';
+      state.phase = 'game';
       state.handNumber = 0;
       state.dealerIdx = 0;
       undoHistory = [];
@@ -3086,12 +3316,200 @@
       startNewHand(false);
     }
 
+    /* ==========================================================
+       REAL-TIME PLAYER PRESENCE, LEAVE & DISCONNECT DETECTION
+       ========================================================== */
+    function sendGuestLeaveSignal() {
+      if (netRole !== 'client') return;
+      const leavePkt = {
+        type: 'PLAYER_LEFT',
+        room: state.roomCode || roomCode,
+        playerId: myDeviceId,
+        name: pendingClientName
+      };
+      if (mqttClient && mqttClient.isOpen()) {
+        mqttClient.publish(getHostTopic(state.roomCode || roomCode), leavePkt, false);
+      }
+      if (wsConnection && wsConnection.readyState === WebSocket.OPEN) {
+        try { wsConnection.send(JSON.stringify(leavePkt)); } catch (_) {}
+      }
+    }
+
+    window.addEventListener('beforeunload', () => {
+      sendGuestLeaveSignal();
+    });
+    window.addEventListener('pagehide', () => {
+      sendGuestLeaveSignal();
+    });
+
+    function leaveRoomAsGuest() {
+      sendGuestLeaveSignal();
+      clearInterval(clientJoinRetryTimer);
+      clearInterval(clientHeartbeatTimer);
+      clientHasJoinedRoster = false;
+      localStorage.setItem(CLIENT_ROLE_KEY, 'home');
+      if (mqttClient) {
+        mqttClient.close();
+        mqttClient = null;
+      }
+      if (wsConnection) {
+        try { wsConnection.close(); } catch (_) {}
+        wsConnection = null;
+      }
+      document.getElementById('clientWaitingBox').style.display = 'none';
+      document.getElementById('clientJoinSubmitBtn').textContent = 'JOIN LOBBY';
+      showScreen('homeScreen');
+      showToast('Left the table');
+    }
+
+    function handleGuestLeaveOrDisconnectOnHost(playerId, isExplicitLeave = false) {
+      if (netRole !== 'host' || !playerId) return;
+      const idx = state.players.findIndex(p => p.id === playerId && p.mode === 'wifi');
+      if (idx === -1) return;
+      const player = state.players[idx];
+
+      if (state.status === 'LOBBY') {
+        // In Waiting Lobby: immediately remove player and broadcast updated LOBBY_STATE
+        const leavingName = player.name;
+        delete lastSeen[playerId];
+        state.players.splice(idx, 1);
+        renderLobbySettingsAndRoster();
+        renderAll();
+        saveAndBroadcastState();
+        showToast(`🚪 ${leavingName} left the lobby`);
+      } else {
+        // Mid-Game: mark player as disconnected (or fold & remove if they explicitly tapped Leave)
+        if (player.isConnected !== false) {
+          player.isConnected = false;
+          showToast(`⚠️ ${player.name} ${isExplicitLeave ? 'left the room' : 'disconnected'}`);
+          renderAll();
+          renderHostDisconnectedPlayersSection();
+          saveAndBroadcastState();
+        }
+      }
+    }
+
+    function startHostPresenceWatchdog() {
+      clearInterval(hostPresenceWatchdogTimer);
+      hostPresenceWatchdogTimer = setInterval(() => {
+        if (netRole !== 'host') return;
+        const now = Date.now();
+        let changed = false;
+        for (let i = state.players.length - 1; i >= 0; i--) {
+          const p = state.players[i];
+          if (p.mode !== 'wifi') continue;
+          const seenAt = lastSeen[p.id] || 0;
+          if (seenAt > 0 && now - seenAt > 8000) {
+            if (state.status === 'LOBBY') {
+              const name = p.name;
+              delete lastSeen[p.id];
+              state.players.splice(i, 1);
+              changed = true;
+              showToast(`🚪 ${name} timed out from lobby`);
+            } else if (p.isConnected !== false) {
+              p.isConnected = false;
+              changed = true;
+              showToast(`⚠️ ${p.name} connection lost`);
+            }
+          }
+        }
+        if (changed) {
+          renderLobbySettingsAndRoster();
+          renderAll();
+          renderHostDisconnectedPlayersSection();
+          saveAndBroadcastState();
+        }
+      }, 2000);
+    }
+
+    function foldAndRemovePlayer(playerId) {
+      const idx = state.players.findIndex(p => p.id === playerId);
+      if (idx <= 0) return;
+      const p = state.players[idx];
+      const wasTheirTurn = state.status === 'PLAYING' && state.turnIdx === idx;
+      pushUndoSnapshot();
+
+      if (state.status === 'LOBBY') {
+        state.players.splice(idx, 1);
+        delete lastSeen[playerId];
+        renderLobbySettingsAndRoster();
+        saveAndBroadcastState();
+        return;
+      }
+
+      // If mid-game, fold their hand and remove or mark spectator so table continues smoothly
+      p.folded = true;
+      p.acted = true;
+      p.isSpectator = true;
+      p.status = 'spectator';
+      p.isConnected = false;
+      p.lastAction = 'LEFT';
+      showToast(`Folded & removed ${p.name} from active hand`);
+      closeSheet('hostDrawerSheet');
+      if (wasTheirTurn) {
+        advanceTurnOrStreet('FOLD');
+      } else {
+        saveAndBroadcastState('FOLD');
+        renderAll();
+      }
+    }
+
+    function switchSeatToLocalControl(playerId) {
+      const p = state.players.find(pl => pl.id === playerId);
+      if (!p) return;
+      pushUndoSnapshot();
+      p.mode = 'local';
+      p.isLocal = true;
+      p.isConnected = true;
+      delete lastSeen[playerId];
+      closeSheet('hostDrawerSheet');
+      saveAndBroadcastState();
+      renderLobbySettingsAndRoster();
+      renderAll();
+      showToast(`🏠 ${p.name} switched to Local Control on Host phone`);
+    }
+
+    function renderHostDisconnectedPlayersSection() {
+      const sec = document.getElementById('hostDisconnectedPlayersSection');
+      const list = document.getElementById('hostDisconnectedPlayersList');
+      if (!sec || !list) return;
+      const wifiPlayers = state.players.filter(p => p.mode === 'wifi');
+      if (wifiPlayers.length === 0) {
+        sec.style.display = 'none';
+        return;
+      }
+      sec.style.display = 'block';
+      list.innerHTML = '';
+      wifiPlayers.forEach(p => {
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex; align-items:center; justify-content:space-between; gap:6px; padding:8px 10px; border-radius:10px; background:var(--surface-2); border:1px solid var(--border-subtle);';
+        const statusDot = p.isConnected === false ? '⚠️ Offline' : '🟢 Connected';
+        row.innerHTML = `
+          <div style="display:flex; flex-direction:column;">
+            <span style="font-size:0.84rem; font-weight:800;">${escapeHtml(p.name)}</span>
+            <span style="font-size:0.68rem; color:var(--text-secondary);">${statusDot} • ${formatMoney(p.stack)}</span>
+          </div>
+          <div style="display:flex; gap:6px;">
+            <button onclick="switchSeatToLocalControl('${escapeHtml(p.id)}')" style="padding:5px 8px; border-radius:8px; background:var(--surface-3); border:1px solid var(--border-bright); color:var(--text-primary); font-size:0.7rem; font-weight:800; cursor:pointer;">Switch to Local</button>
+            <button onclick="foldAndRemovePlayer('${escapeHtml(p.id)}')" style="padding:5px 8px; border-radius:8px; background:rgba(239,68,68,0.18); border:1px solid rgba(239,68,68,0.45); color:#FCA5A5; font-size:0.7rem; font-weight:800; cursor:pointer;">Fold & Remove</button>
+          </div>
+        `;
+        list.appendChild(row);
+      });
+    }
+
     function openJoinLobby() {
       netRole = 'client';
+      localStorage.setItem(CLIENT_ROLE_KEY, 'client');
+      clearInterval(hostPresenceWatchdogTimer);
       showScreen('joinLobbyScreen');
       const codeInput = document.getElementById('clientRoomCodeInput');
       if (codeInput) {
         codeInput.value = (roomCode || state.roomCode || 'POKR').toUpperCase();
+      }
+      const nameInput = document.getElementById('clientJoinNameInput');
+      if (nameInput && !nameInput.value && pendingClientName) {
+        nameInput.value = pendingClientName;
       }
       ensureClientRelayReady((codeInput?.value || roomCode || 'POKR').trim().toUpperCase());
     }
@@ -3105,14 +3523,17 @@
         return;
       }
       const codeInput = document.getElementById('clientRoomCodeInput');
-      const targetRoom = ((codeInput ? codeInput.value : '') || roomCode || 'POKR').trim().toUpperCase();
+      const targetRoom = ((codeInput ? codeInput.value : '') || roomCode || 'POKR').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
       if (!targetRoom) {
-        showToast('Please enter the 4-letter Room Code');
+        showToast('Please enter the Room Code');
         if (codeInput) codeInput.focus();
         return;
       }
       roomCode = targetRoom;
       state.roomCode = targetRoom;
+      localStorage.setItem(ROOM_CODE_KEY, targetRoom);
+      localStorage.setItem(CLIENT_NAME_KEY, name);
+      localStorage.setItem(CLIENT_ROLE_KEY, 'client');
       connectWebSocketAsClient(targetRoom, name);
     }
 
@@ -3142,17 +3563,51 @@
 
     function handleIncomingHostMessage(msg) {
       if (!msg || typeof msg !== 'object') return;
+      if (msg.room && String(msg.room).toUpperCase() !== String(state.roomCode).toUpperCase()) {
+        return;
+      }
+
+      if (msg.playerId) {
+        lastSeen[msg.playerId] = Date.now();
+      }
+
+      if (msg.type === 'PING' && msg.playerId) {
+        const existing = state.players.find(p => p.id === msg.playerId);
+        if (existing && existing.isConnected === false) {
+          existing.isConnected = true;
+          renderLobbySettingsAndRoster();
+          renderAll();
+          saveAndBroadcastState();
+          showToast(`🟢 ${existing.name} reconnected!`);
+        }
+        return;
+      }
+
+      if ((msg.type === 'PLAYER_LEFT' || msg.type === 'PLAYER_DISCONNECTED') && msg.playerId) {
+        handleGuestLeaveOrDisconnectOnHost(msg.playerId, msg.type === 'PLAYER_LEFT');
+        return;
+      }
+
       if ((msg.type === 'JOIN' || msg.type === 'JOIN_REQUEST' || msg.type === 'LOBBY_JOIN') && msg.name && msg.playerId) {
         const existing = state.players.find(p => p.id === msg.playerId);
         let isNewPlayer = false;
         if (existing) {
+          const wasOffline = existing.isConnected === false;
           existing.name = msg.name;
+          existing.mode = 'wifi';
+          existing.isLocal = false;
+          existing.isConnected = true;
+          if (wasOffline) {
+            showToast(`🟢 ${msg.name} rejoined their seat!`);
+          }
         } else if (state.players.length < 10) {
           isNewPlayer = true;
           state.players.push({
             id: msg.playerId,
             name: msg.name,
             mode: 'wifi',
+            isLocal: false,
+            isConnected: true,
             status: 'active',
             isSpectator: false,
             stack: state.startingStack,
@@ -3171,8 +3626,12 @@
         renderLobbySettingsAndRoster();
         renderAll();
         saveAndBroadcastState();
-      } else if (msg.type === 'PLAYER_ACTION' && netRole === 'host' && msg.payload) {
-        handleRemotePlayerAction(msg.playerId, msg.payload);
+      } else if (msg.type === 'PLAYER_ACTION' && netRole === 'host') {
+        const actionPayload = msg.payload || {
+          type: msg.action,
+          targetTotalBet: msg.amount
+        };
+        handleRemotePlayerAction(msg.playerId, actionPayload);
       } else if (msg.type === 'REBUY_REQUEST' && netRole === 'host') {
         Sound.chipThrow(1.25);
         showToast(`👋 ${msg.name || 'Player'} requested a Rebuy!`);
@@ -3184,7 +3643,6 @@
     function connectWebSocketAsHost() {
       updateRelayStatusBadges(mqttClient ? mqttClient.isOpen() : false);
 
-      // 1. Cloud WebSocket MQTT Relay (Works on Vercel, GitHub Pages, Mobile Hotspots & Strict NATs)
       if (mqttClient) {
         mqttClient.close();
       }
@@ -3192,17 +3650,20 @@
         MQTT_BROKERS,
         () => {
           mqttClient.subscribe(getHostTopic(state.roomCode));
+          mqttClient.subscribe(getClientsTopic(state.roomCode));
           saveAndBroadcastState();
         },
         (_topic, payloadStr) => {
+          if (!payloadStr) return;
           try {
             const msg = JSON.parse(payloadStr);
             handleIncomingHostMessage(msg);
           } catch (_) {}
-        }
+        },
+        null
       );
 
-      // 2. Optional Local LAN WebSocket fallback if running node server.js locally
+      // Optional Local LAN WebSocket fallback if running node server.js locally
       try {
         if (location.hostname === 'localhost' || /^(\d+\.){3}\d+$/.test(location.hostname)) {
           const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -3226,24 +3687,73 @@
 
     function handleIncomingClientStateMessage(msg) {
       if (!msg || typeof msg !== 'object') return;
-      if ((msg.type === 'LOBBY_STATE' || msg.type === 'GAME_STATE' || msg.type === 'STATE_SYNC' || msg.syncType === 'STATE_SYNC') && msg.state) {
-        state = msg.state;
+      const incomingState = msg.state || (Array.isArray(msg.players) ? msg : null);
+      if (
+        (msg.type === 'STATE_UPDATE' ||
+          msg.type === 'LOBBY_STATE' ||
+          msg.type === 'GAME_STATE' ||
+          msg.type === 'STATE_SYNC' ||
+          msg.syncType === 'STATE_SYNC' ||
+          msg.syncType === 'LOBBY_STATE' ||
+          msg.syncType === 'GAME_STATE') &&
+        incomingState
+      ) {
+        const prevTurnActorId = state.players[state.turnIdx]?.id;
+        state = incomingState;
+
         const amInRoster = state.players && state.players.some(p => p.id === myDeviceId);
         if (amInRoster) {
           clientHasJoinedRoster = true;
           clearInterval(clientJoinRetryTimer);
           const titleEl = document.getElementById('clientWaitingTitle');
-          if (titleEl) titleEl.textContent = `✓ You're in Room ${state.roomCode}!`;
+          if (titleEl) titleEl.textContent = `✓ Seated in Room ${state.roomCode}!`;
           const subEl = document.getElementById('clientWaitingSub');
-          if (subEl) subEl.textContent = `Seated at table (${state.players.length} players). Waiting for Host to start...`;
+          if (subEl) subEl.textContent = `Table Roster (${state.players.length} players) — Waiting for Host to tap START GAME NIGHT...`;
+
+          const previewEl = document.getElementById('clientLobbyRosterPreview');
+          if (previewEl) {
+            previewEl.innerHTML = state.players.map((pl, idx) => {
+              const isMe = pl.id === myDeviceId;
+              return `<span style="font-size:0.72rem; font-weight:800; padding:4px 9px; border-radius:999px; background:${isMe ? 'rgba(16,185,129,0.22)' : 'var(--surface-3)'}; border:1px solid ${isMe ? 'var(--emerald)' : 'var(--border-subtle)'}; color:${isMe ? '#6EE7B7' : 'var(--text-primary)'};">#${idx + 1} ${escapeHtml(pl.name)}${isMe ? ' (YOU)' : ''}</span>`;
+            }).join('');
+          }
+        } else if (pendingClientName && state.status === 'LOBBY') {
+          // Host doesn't have us in the lobby roster yet -> immediately send JOIN
+          publishClientJoinPacket(state.roomCode || roomCode, pendingClientName);
         }
 
-        if (state.status === 'PLAYING') {
+        const isGamePhase = msg.phase === 'game' || state.phase === 'game' || state.status === 'PLAYING';
+        if (isGamePhase) {
           showScreen(null);
-        } else if (state.status === 'CHAMPION') {
+        } else if (state.status === 'CHAMPION' || msg.phase === 'champion') {
           const champ = state.players.find(p => !p.isSpectator && p.stack > 0) || state.players[0];
           showChampionCelebration(champ);
+        } else if (state.status === 'LOBBY' && netRole === 'client') {
+          showScreen('joinLobbyScreen');
         }
+
+        // Check if turn just arrived on this Guest phone -> alert sound + vibration
+        const newTurnActor = state.players[state.turnIdx];
+        const turnKey = `${state.handNumber}_${state.streetIndex}_${state.turnIdx}_${state.currentBet}`;
+        if (
+          isGamePhase &&
+          state.streetIndex < 4 &&
+          newTurnActor &&
+          newTurnActor.id === myDeviceId &&
+          !newTurnActor.folded &&
+          !newTurnActor.isSpectator &&
+          !newTurnActor.allIn &&
+          (prevTurnActorId !== myDeviceId || lastNotifiedTurnKey !== turnKey)
+        ) {
+          lastNotifiedTurnKey = turnKey;
+          stagedChips = [];
+          Sound.chipThrow(1.22);
+          try {
+            if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+          } catch (_) {}
+          showToast('🟢 Your Turn to Act!');
+        }
+
         if (msg.eventCue === 'POT_GATHER') Sound.potGather();
         else if (msg.eventCue === 'CHIP_THROW') Sound.chipThrow(1.05);
         else if (msg.eventCue === 'CHECK') Sound.woodCheck();
@@ -3256,8 +3766,8 @@
     }
 
     function ensureClientRelayReady(targetRoomCode) {
-      const cleanRoom = (targetRoomCode || roomCode || 'POKR').toUpperCase();
-      if (mqttClient && mqttClient.isOpen()) {
+      const cleanRoom = (targetRoomCode || roomCode || 'POKR').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+      if (mqttClient && mqttClient.isOpen() && roomCode === cleanRoom) {
         mqttClient.subscribe(getClientsTopic(cleanRoom));
         updateRelayStatusBadges(true);
         return;
@@ -3266,20 +3776,35 @@
         mqttClient.close();
       }
       updateRelayStatusBadges(false);
+
+      // Layer B: Configure MQTT Last Will & Testament (LWT) so broker notifies Host on sudden drop
+      const lwtConfig = {
+        topic: getHostTopic(cleanRoom),
+        payload: JSON.stringify({
+          type: 'PLAYER_DISCONNECTED',
+          room: cleanRoom,
+          playerId: myDeviceId
+        }),
+        qos: 1,
+        retain: false
+      };
+
       mqttClient = createLightweightMqttClient(
         MQTT_BROKERS,
         () => {
           mqttClient.subscribe(getClientsTopic(cleanRoom));
-          if (pendingClientName && !clientHasJoinedRoster) {
+          if (pendingClientName) {
             publishClientJoinPacket(cleanRoom, pendingClientName);
           }
         },
         (_topic, payloadStr) => {
+          if (!payloadStr) return;
           try {
             const msg = JSON.parse(payloadStr);
             handleIncomingClientStateMessage(msg);
           } catch (_) {}
-        }
+        },
+        lwtConfig
       );
     }
 
@@ -3303,8 +3828,27 @@
       }
     }
 
+    function startClientHeartbeat(targetRoom) {
+      clearInterval(clientHeartbeatTimer);
+      clientHeartbeatTimer = setInterval(() => {
+        if (netRole !== 'client') return;
+        const pingPayload = {
+          type: 'PING',
+          room: targetRoom,
+          playerId: myDeviceId,
+          name: pendingClientName
+        };
+        if (mqttClient && mqttClient.isOpen()) {
+          mqttClient.publish(getHostTopic(targetRoom), pingPayload, false);
+        }
+        if (wsConnection && wsConnection.readyState === WebSocket.OPEN) {
+          try { wsConnection.send(JSON.stringify(pingPayload)); } catch (_) {}
+        }
+      }, 3000);
+    }
+
     function connectWebSocketAsClient(targetRoomCode, playerName) {
-      const cleanRoom = (targetRoomCode || 'POKR').trim().toUpperCase();
+      const cleanRoom = (targetRoomCode || 'POKR').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
       roomCode = cleanRoom;
       state.roomCode = cleanRoom;
       pendingClientName = playerName;
@@ -3319,6 +3863,7 @@
       ensureClientRelayReady(cleanRoom);
       mqttClient.subscribe(getClientsTopic(cleanRoom));
       publishClientJoinPacket(cleanRoom, playerName);
+      startClientHeartbeat(cleanRoom);
 
       // Automatic Handshake & Heartbeat: retry every 1.5 seconds until Host includes myDeviceId in roster
       clearInterval(clientJoinRetryTimer);
@@ -3354,11 +3899,13 @@
 
     function handleRemotePlayerAction(playerId, payload) {
       const currentActor = state.players[state.turnIdx];
-      if (!currentActor || currentActor.id !== playerId) return;
-      if (payload.type === 'FOLD') executeFold();
-      else if (payload.type === 'CHECK_CALL') executeCheckOrCall();
-      else if (payload.type === 'RAISE_TO') executeBetOrRaiseTo(payload.targetTotalBet);
-      else if (payload.type === 'ALL_IN') executeBetOrRaiseTo(currentActor.streetBet + currentActor.stack);
+      if (!currentActor || currentActor.id !== playerId || !payload) return;
+      const actionType = payload.type || payload.action;
+      const targetAmount = payload.targetTotalBet ?? payload.amount;
+      if (actionType === 'FOLD') executeFold();
+      else if (actionType === 'CHECK_CALL' || actionType === 'CHECK' || actionType === 'CALL') executeCheckOrCall();
+      else if (actionType === 'RAISE_TO' || actionType === 'RAISE' || actionType === 'BET') executeBetOrRaiseTo(targetAmount);
+      else if (actionType === 'ALL_IN') executeBetOrRaiseTo(currentActor.streetBet + currentActor.stack);
     }
 
     /* ==========================================================
@@ -3790,7 +4337,8 @@
       if (netRole === 'client') {
         return actor.id === myDeviceId;
       }
-      return true;
+      // On Host phone: only unlock bottom chip rack when active turn belongs to Host or a Local Player
+      return actor.mode !== 'wifi' || actor.isLocal === true;
     }
 
     function getStagedDeltaSum() {
@@ -4092,10 +4640,20 @@
 
     function sendClientMoveIfRemote(payload) {
       if (netRole === 'client') {
+        const actionType = payload.type || payload.action;
+        const amountVal = payload.targetTotalBet ?? payload.amount ?? 0;
+
+        // Play local tactile audio & feedback immediately on the Guest's phone
+        if (actionType === 'FOLD') Sound.foldSwoosh();
+        else if (actionType === 'ALL_IN') Sound.allInCascade();
+        else Sound.chipThrow(1.1);
+
         const actionPacket = {
           type: 'PLAYER_ACTION',
           room: state.roomCode,
           playerId: myDeviceId,
+          action: actionType,
+          amount: amountVal,
           payload
         };
         let sent = false;
@@ -4271,6 +4829,7 @@
 
     function openHostDrawer() {
       updateUndoCountUI();
+      renderHostDisconnectedPlayersSection();
       openSheet('hostDrawerSheet');
     }
 
@@ -4512,6 +5071,22 @@
       document.getElementById('potDisplay').textContent = formatMoney(totalPot);
       document.getElementById('streetDisplay').textContent = STREETS[state.streetIndex] || 'Pre-Flop';
 
+      const topLobbyBtn = document.getElementById('topLobbyBtn');
+      const topGuestLeaveBtn = document.getElementById('topGuestLeaveBtn');
+      const topHostCrownBtn = document.getElementById('topHostCrownBtn');
+      const topRoomLabel = document.getElementById('topRoomLabel');
+      if (topRoomLabel) topRoomLabel.textContent = state.roomCode || 'Lobby';
+
+      if (netRole === 'client') {
+        if (topLobbyBtn) topLobbyBtn.style.display = 'none';
+        if (topGuestLeaveBtn) topGuestLeaveBtn.style.display = 'inline-flex';
+        if (topHostCrownBtn) topHostCrownBtn.style.visibility = 'hidden';
+      } else {
+        if (topLobbyBtn) topLobbyBtn.style.display = 'inline-flex';
+        if (topGuestLeaveBtn) topGuestLeaveBtn.style.display = 'none';
+        if (topHostCrownBtn) topHostCrownBtn.style.visibility = 'visible';
+      }
+
       const actor = state.players[state.turnIdx];
       const toCall = actor && state.streetIndex < 4 && !actor.isSpectator
         ? Math.max(0, state.currentBet - actor.streetBet)
@@ -4565,6 +5140,8 @@
         const yPct = 50 + ry * Math.sin(rad);
 
         const isTurn = state.streetIndex < 4 && idx === state.turnIdx && !p.folded && !p.isSpectator && !p.allIn;
+        const isMe = (netRole === 'client' && p.id === myDeviceId) || (netRole === 'host' && p.mode === 'host');
+        const isDisconnected = p.mode === 'wifi' && p.isConnected === false;
 
         const seat = document.createElement('div');
         seat.dataset.playerId = p.id;
@@ -4583,10 +5160,13 @@
 
         if (p.isSpectator) {
           seat.innerHTML = `
+            ${isMe ? '<span class="you-seat-pill">YOU</span>' : ''}
             <span class="seat-name">${escapeHtml(p.name)}</span>
             <span class="seat-spectator-pill">👻 SPECTATOR</span>
           `;
-          seat.onclick = () => openManageStacksSheet();
+          seat.onclick = () => {
+            if (netRole === 'host') openManageStacksSheet();
+          };
         } else {
           let tagText = 'READY';
           let tagClass = 'seat-bet-tag';
@@ -4609,15 +5189,18 @@
           const blindBadge = idx === state.sbIdx ? 'SB' : idx === state.bbIdx ? 'BB' : '';
 
           seat.innerHTML = `
+            ${isMe ? '<span class="you-seat-pill">YOU</span>' : ''}
             ${isDealer ? '<div class="dealer-token">D</div>' : ''}
             ${blindBadge ? `<div class="blind-pip">${blindBadge}</div>` : ''}
             <span class="seat-name">${escapeHtml(p.name)}</span>
             <span class="seat-stack">${formatMoney(p.stack)}</span>
             <span class="${tagClass}">${escapeHtml(tagText)}</span>
+            ${isDisconnected ? '<span class="disconnected-seat-pill">⚠️ Disconnected</span>' : ''}
           `;
 
           seat.onclick = () => {
-            if (state.streetIndex === 4) openAwardPotModal(true);
+            if (netRole === 'host' && state.streetIndex === 4) openAwardPotModal(true);
+            else if (netRole === 'host' && isDisconnected) openHostDrawer();
           };
         }
 
@@ -4633,10 +5216,21 @@
       stackContainer.innerHTML = '';
 
       const stagedDelta = getStagedDeltaSum();
+      const canAct = isMyTurnToAct();
 
       if (stagedChips.length === 0) {
         pileLabel.className = 'staging-empty-hint';
-        pileLabel.textContent = actor && !actor.isSpectator ? `${actor.name}: Tap chips to stage bet` : 'Waiting...';
+        if (state.streetIndex === 4) {
+          pileLabel.textContent = netRole === 'host' ? 'Showdown — Tap a seat or 👑 to award pot' : 'Showdown — Host is awarding the pot...';
+        } else if (canAct && actor) {
+          pileLabel.textContent = netRole === 'client'
+            ? `🟢 Your Turn (${actor.name}): Tap chips to stage bet`
+            : `${actor.name}: Tap chips to stage bet`;
+        } else if (actor) {
+          pileLabel.textContent = `⏳ Waiting for ${actor.name}...`;
+        } else {
+          pileLabel.textContent = 'Waiting...';
+        }
       } else {
         const visibleChips = stagedChips.slice(-10);
         visibleChips.forEach((item, i) => {
@@ -4657,11 +5251,18 @@
     function renderStagingPileAndDock() {
       const dock = document.getElementById('actionDock');
       const specBanner = document.getElementById('spectatorClientBanner');
+      const waitBanner = document.getElementById('turnWaitBanner');
+      const waitPrimary = document.getElementById('turnWaitPrimaryText');
+      const waitRight = document.getElementById('turnWaitRightZone');
+
+      const myPlayer = netRole === 'client'
+        ? state.players.find(p => p.id === myDeviceId)
+        : state.players.find(p => p.mode === 'host') || state.players[0];
 
       // Check if this connected client phone is currently a Spectator
-      const myPlayer = netRole === 'client' ? state.players.find(p => p.id === myDeviceId) : null;
-      if (myPlayer && myPlayer.isSpectator) {
+      if (netRole === 'client' && myPlayer && myPlayer.isSpectator) {
         specBanner.classList.add('visible');
+        if (waitBanner) waitBanner.classList.remove('visible');
         dock.style.display = 'none';
         renderStagingPileOnly();
         return;
@@ -4671,23 +5272,45 @@
       }
 
       const canAct = isMyTurnToAct();
+      const actor = state.players[state.turnIdx];
       dock.classList.toggle('dock-disabled', !canAct);
 
-      const actor = state.players[state.turnIdx];
+      // Update Turn Waiting Banner for Guests (when not their turn) and Host (when waiting on a Wi-Fi Guest's phone)
+      if (waitBanner && waitPrimary && waitRight) {
+        if (state.status === 'PLAYING' && state.streetIndex < 4 && actor && !canAct) {
+          waitBanner.classList.add('visible');
+          if (netRole === 'client') {
+            waitPrimary.textContent = `⏳ Waiting for ${actor.name}...`;
+            waitRight.innerHTML = myPlayer ? `Your Stack: ${formatMoney(myPlayer.stack)}` : '';
+          } else {
+            // Host phone waiting on a connected Wi-Fi Guest
+            const offlineTag = actor.isConnected === false ? ' ⚠️ Offline' : ' (On their phone)';
+            waitPrimary.textContent = `📱 Waiting for ${actor.name}${offlineTag}...`;
+            waitRight.innerHTML = `
+              <button onclick="forceCheckOrFoldCurrentPlayer()" style="padding:4px 8px; border-radius:8px; background:rgba(239,68,68,0.18); border:1px solid rgba(239,68,68,0.45); color:#FCA5A5; font-family:var(--font-sans); font-size:0.68rem; font-weight:800; cursor:pointer;">Force Fold / Skip</button>
+              <button onclick="switchSeatToLocalControl('${escapeHtml(actor.id)}')" style="padding:4px 8px; border-radius:8px; background:var(--surface-3); border:1px solid var(--border-bright); color:var(--text-primary); font-family:var(--font-sans); font-size:0.68rem; font-weight:800; cursor:pointer;">Local</button>
+            `;
+          }
+        } else {
+          waitBanner.classList.remove('visible');
+        }
+      }
+
       renderStagingPileOnly();
 
       const stagedDelta = getStagedDeltaSum();
+      const chipOwner = (netRole === 'client' && myPlayer) ? myPlayer : actor;
 
       const rack = document.getElementById('chipRackArc');
       rack.innerHTML = '';
-      if (actor && !actor.isSpectator) {
-        const remainingToStage = Math.max(0, actor.stack - stagedDelta);
+      if (chipOwner && !chipOwner.isSpectator) {
+        const remainingToStage = Math.max(0, chipOwner.stack - stagedDelta);
         CHIP_DENOMS.forEach(d => {
-          if (d.val > actor.stack) return;
+          if (d.val > chipOwner.stack) return;
           const chipEl = document.createElement('button');
           chipEl.className = `casino-chip ${d.cls}`;
           chipEl.dataset.denom = String(d.val);
-          if (d.val > remainingToStage) {
+          if (d.val > remainingToStage || !canAct) {
             chipEl.style.opacity = '0.35';
           }
           chipEl.innerHTML = `<div class="chip-inlay">$${d.val}</div>`;
@@ -4746,21 +5369,30 @@
 
     function resumeSavedTable() {
       showScreen(null);
+      if (netRole === 'host') {
+        connectWebSocketAsHost();
+        startHostPresenceWatchdog();
+      }
       renderAll();
     }
 
     /* ==========================================================
-       12. INITIALIZATION & QR DEEP-LINK AUTO-DETECTION
+       12. INITIALIZATION & QR DEEP-LINK / AUTO-REJOIN DETECTION
        ========================================================== */
     window.addEventListener('DOMContentLoaded', () => {
       const params = new URLSearchParams(location.search);
       if (params.get('room')) {
-        roomCode = params.get('room').toUpperCase();
+        roomCode = params.get('room').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
         state.roomCode = roomCode;
+        localStorage.setItem(ROOM_CODE_KEY, roomCode);
       }
 
       if (params.get('join') === '1') {
         openJoinLobby();
+        if (pendingClientName) {
+          // Seamless auto-rejoin if Guest already entered their name previously
+          connectWebSocketAsClient(roomCode, pendingClientName);
+        }
         return;
       }
 
@@ -4770,7 +5402,18 @@
           const parsed = JSON.parse(raw);
           if (parsed && Array.isArray(parsed.players) && parsed.players.length >= 2) {
             state = parsed;
-            if (state.status === 'PLAYING') {
+            if (state.roomCode) roomCode = state.roomCode;
+            const lastRole = localStorage.getItem(CLIENT_ROLE_KEY);
+            if (lastRole === 'client' && pendingClientName && state.players.some(p => p.id === myDeviceId)) {
+              // Auto-rejoin Guest seat after refresh
+              netRole = 'client';
+              connectWebSocketAsClient(roomCode, pendingClientName);
+              if (state.status === 'PLAYING') {
+                showScreen(null);
+              } else {
+                showScreen('joinLobbyScreen');
+              }
+            } else if (state.status === 'PLAYING') {
               document.getElementById('resumeGameBtn').style.display = 'inline-block';
             }
           }
