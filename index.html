@@ -46,10 +46,14 @@
       -webkit-user-select: none;
     }
 
-    html, body {
+    html, body, #root {
       width: 100%;
       height: 100dvh;
+      max-height: 100dvh;
       overflow: hidden;
+      margin: 0;
+      padding: 0;
+      overscroll-behavior: none;
       background-color: var(--bg-felt);
       color: var(--text-primary);
       font-family: var(--font-sans);
@@ -474,21 +478,31 @@
 
     /* ==========================================================
        MAIN GAME SCREEN: 3-ZONE HYPER-FOCUSED CASINO TABLE
+       Locked to 100dvh x 100vw so middle table never pushes bottom controls off-screen
        ========================================================== */
     .app-viewport {
-      position: relative;
+      position: fixed;
+      inset: 0;
       width: 100%;
       height: 100dvh;
-      display: grid;
-      grid-template-rows: auto 1fr auto;
-      padding: max(10px, env(safe-area-inset-top)) 14px max(12px, env(safe-area-inset-bottom));
-      max-width: 680px;
+      max-height: 100dvh;
+      max-width: min(680px, 100vw);
       margin: 0 auto;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: max(8px, env(safe-area-inset-top)) 12px 0 12px;
+      box-sizing: border-box;
+      user-select: none;
     }
 
     /* 1. TOP ZONE: ACTIVE POT & STREET */
     .top-zone {
       position: relative;
+      flex-shrink: 0;
+      width: 100%;
+      box-sizing: border-box;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -620,10 +634,12 @@
 
     /* 2. MIDDLE ZONE: THE TABLE RING & CENTER POT STACK + STAGING PILE */
     .middle-zone {
+      flex: 1 1 0%;
+      min-height: 0;
+      min-width: 0;
       position: relative;
       width: 100%;
-      height: 100%;
-      min-height: 220px;
+      overflow: hidden;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -1089,12 +1105,26 @@
 
     /* ==========================================================
        3. BOTTOM ZONE: QUICK-FILL PILLS, 3D CHIP RACK & ACTION BAR
+       Locked flex-shrink: 0 & width: 100% inside viewport bounds
        ========================================================== */
+    .bottom-dock-wrap {
+      flex-shrink: 0;
+      width: 100%;
+      max-width: 100%;
+      box-sizing: border-box;
+      padding-bottom: max(10px, env(safe-area-inset-bottom));
+      z-index: 20;
+    }
+
     .bottom-zone {
+      flex-shrink: 0;
+      width: 100%;
+      max-width: 100%;
+      box-sizing: border-box;
       position: relative;
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: 7px;
       z-index: 20;
       transition: opacity 0.2s ease, filter 0.2s ease;
     }
@@ -1111,11 +1141,14 @@
       align-items: center;
       justify-content: space-between;
       gap: 12px;
-      padding: 14px 16px;
+      padding: 12px 14px;
       border-radius: 18px;
       background: var(--surface-1);
       border: 1.5px dashed var(--border-bright);
       color: var(--text-secondary);
+      width: 100%;
+      max-width: 100%;
+      box-sizing: border-box;
       z-index: 25;
     }
 
@@ -1147,6 +1180,10 @@
       justify-content: space-between;
       gap: 6px;
       padding: 0 2px;
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
+      box-sizing: border-box;
     }
 
     .swipe-toss-prompt {
@@ -1155,13 +1192,18 @@
       color: var(--text-secondary);
       letter-spacing: 0.02em;
       white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      min-width: 0;
     }
 
     .quick-fill-row {
       display: flex;
       align-items: center;
-      justify-content: center;
+      justify-content: flex-end;
       gap: 5px;
+      flex-shrink: 0;
+      margin-left: auto;
     }
 
     .quick-fill-pill {
@@ -1188,10 +1230,14 @@
       position: relative;
       display: flex;
       align-items: center;
-      justify-content: center;
-      gap: 9px;
-      padding: 8px 6px 10px;
-      min-height: 68px;
+      justify-content: space-between;
+      gap: 6px;
+      padding: 7px 8px 9px;
+      min-height: 64px;
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
+      box-sizing: border-box;
       background: linear-gradient(180deg, rgba(16, 29, 25, 0.72) 0%, rgba(7, 14, 12, 0.92) 100%);
       border: 1px solid var(--border-subtle);
       border-radius: 20px;
@@ -1200,8 +1246,9 @@
 
     .casino-chip {
       position: relative;
-      width: 54px;
-      height: 54px;
+      width: clamp(44px, 13.5vw, 54px);
+      height: clamp(44px, 13.5vw, 54px);
+      flex-shrink: 1;
       border-radius: 50%;
       cursor: grab;
       display: flex;
@@ -1293,13 +1340,17 @@
 
     /* Streamlined Turn Bar (FOLD on Left, CHECK / CALL $X on Right) + Shove All-In Handle */
     .action-bar {
-      display: grid;
-      grid-template-columns: 1fr 1.35fr;
+      display: flex;
+      width: 100%;
+      max-width: 100%;
       gap: 8px;
+      box-sizing: border-box;
     }
 
     .act-btn {
-      height: 52px;
+      flex: 1 1 0%;
+      min-width: 0;
+      height: 50px;
       border-radius: 15px;
       display: flex;
       flex-direction: column;
@@ -1308,6 +1359,8 @@
       padding: 0 10px;
       font-weight: 800;
       cursor: pointer;
+      box-sizing: border-box;
+      overflow: hidden;
       transition: transform 0.1s ease, background 0.15s ease, opacity 0.15s ease;
     }
 
@@ -1832,7 +1885,7 @@
       </button>
 
       <div style="margin-top:6px; display:flex; justify-content:center;">
-        <span class="app-version-badge" data-version-badge>v1.6.1</span>
+        <span class="app-version-badge" data-version-badge>v1.6.2</span>
       </div>
     </div>
   </section>
@@ -1844,7 +1897,7 @@
     <div class="lobby-card">
       <div class="lobby-top-bar">
         <button class="lobby-back-btn" onclick="showScreen('homeScreen')">← Home</button>
-        <span class="lobby-title">Host Lobby <span class="app-version-badge" data-version-badge style="padding:1px 6px; font-size:0.6rem; margin-left:4px;">v1.6.1</span></span>
+        <span class="lobby-title">Host Lobby <span class="app-version-badge" data-version-badge style="padding:1px 6px; font-size:0.6rem; margin-left:4px;">v1.6.2</span></span>
         <span id="hostRelayStatusBadge" style="font-size:0.68rem; font-weight:800; padding:4px 8px; border-radius:999px; background:rgba(16,185,129,0.12); border:1px solid rgba(16,185,129,0.35); color:#A7F3D0; white-space:nowrap;">🟡 Connecting...</span>
       </div>
 
@@ -1914,7 +1967,7 @@
     <div class="lobby-card">
       <div class="lobby-top-bar">
         <button class="lobby-back-btn" onclick="leaveRoomAsGuest()">← Leave</button>
-        <span class="lobby-title">Join Table <span class="app-version-badge" data-version-badge style="padding:1px 6px; font-size:0.6rem; margin-left:4px;">v1.6.1</span></span>
+        <span class="lobby-title">Join Table <span class="app-version-badge" data-version-badge style="padding:1px 6px; font-size:0.6rem; margin-left:4px;">v1.6.2</span></span>
         <span id="clientRelayStatusBadge" style="font-size:0.68rem; font-weight:800; padding:4px 8px; border-radius:999px; background:rgba(16,185,129,0.12); border:1px solid rgba(16,185,129,0.35); color:#A7F3D0; white-space:nowrap;">🟡 Connecting...</span>
       </div>
 
@@ -2037,7 +2090,7 @@
     </main>
 
     <!-- 3. BOTTOM ZONE: SPECTATOR BANNER, TURN STATUS BANNER, OR PHYSICAL SWIPE-TO-THROW CHIP TRAY + ACTION BAR -->
-    <div>
+    <div class="bottom-dock-wrap">
       <!-- Connected Wi-Fi Phone Spectator Banner -->
       <div id="spectatorClientBanner" class="spectator-client-banner">
         <div>
@@ -2870,7 +2923,7 @@
     /* ==========================================================
        4. LOBBY, NETWORKING & POKER STATE MACHINE
        ========================================================== */
-    const APP_VERSION = 'v1.6.1';
+    const APP_VERSION = 'v1.6.2';
     const STORAGE_KEY = 'felt_poker_state_v3';
     const DEVICE_ID_KEY = 'felt_device_id_v3';
     const STREETS = ['Pre-Flop', 'Flop', 'Turn', 'River', 'Showdown'];
@@ -5340,9 +5393,8 @@
 
     function getMinRaiseTargetTotal(actor) {
       const maxTotalBet = actor.streetBet + actor.stack;
-      const minTarget = state.currentBet === 0
-        ? Math.min(maxTotalBet, state.bigBlind)
-        : Math.min(maxTotalBet, state.currentBet + state.minRaiseDelta);
+      // Any bet or raise strictly greater than the current highest bet on the table is valid (or All-In)
+      const minTarget = Math.min(maxTotalBet, state.currentBet + 1);
       return { minTarget, maxTotalBet };
     }
 
@@ -5355,7 +5407,8 @@
 
       let targetTotal = minTarget;
       if (mode === 'min') {
-        targetTotal = minTarget;
+        const step = Math.max(1, state.bigBlind || 10);
+        targetTotal = Math.min(maxTotalBet, state.currentBet === 0 ? step : state.currentBet + step);
       } else if (mode === 'half') {
         targetTotal = state.currentBet + Math.round((potNow + toCall) * 0.5);
       } else if (mode === 'pot') {
@@ -5624,7 +5677,7 @@
     function handleRaiseConfirmTap() {
       if (!isMyTurnToAct() || stagedChips.length === 0) return;
       const actor = state.players[state.turnIdx];
-      const { minTarget, maxTotalBet } = getMinRaiseTargetTotal(actor);
+      const { maxTotalBet } = getMinRaiseTargetTotal(actor);
       const stagedDelta = getStagedDeltaSum();
       const proposedTotal = actor.streetBet + stagedDelta;
 
@@ -5632,8 +5685,8 @@
       const zoneEl = document.getElementById('stagingPileZone');
       const stackEl = document.getElementById('stagingChipsStack');
 
-      // If staged amount is less than legal minRaise and player is not All-In: shake & warn instead of submitting
-      if (proposedTotal < minTarget && proposedTotal < maxTotalBet) {
+      // A raise is valid as long as proposedTotal > state.currentBet OR the player is going ALL-IN (proposedTotal >= maxTotalBet)
+      if (proposedTotal <= state.currentBet && proposedTotal < maxTotalBet) {
         disarmStagedBetConfirm();
         Sound.vibrate([15, 40, 15]);
         if (zoneEl) {
@@ -5642,12 +5695,12 @@
           zoneEl.classList.add('shake-error');
           setTimeout(() => zoneEl.classList.remove('shake-error'), 380);
         }
-        const minLabel = state.currentBet === 0 ? `Min Bet is ${formatMoney(minTarget)}` : `Min Raise is ${formatMoney(minTarget)}`;
+        const neededLabel = `Raise above ${formatMoney(state.currentBet)}`;
         if (confirmBtn) {
           confirmBtn.className = 'confirm-staged-bet-btn needs-more';
-          confirmBtn.textContent = minLabel;
+          confirmBtn.textContent = neededLabel;
         }
-        showToast(minLabel);
+        showToast(neededLabel);
         return;
       }
 
@@ -6236,13 +6289,13 @@
           : `Staged: ${formatMoney(totalBetWithStage)}`;
 
         if (confirmBtn && actor && canAct) {
-          const { minTarget, maxTotalBet } = getMinRaiseTargetTotal(actor);
+          const { maxTotalBet } = getMinRaiseTargetTotal(actor);
           const isUnopened = state.currentBet === 0;
           confirmBtn.style.display = 'inline-flex';
-          if (totalBetWithStage < minTarget && totalBetWithStage < maxTotalBet) {
+          if (totalBetWithStage <= state.currentBet && totalBetWithStage < maxTotalBet) {
             stackContainer.classList.remove('armed-pulse');
             confirmBtn.className = 'confirm-staged-bet-btn needs-more';
-            confirmBtn.textContent = `${isUnopened ? 'Min Bet' : 'Min Raise'} is ${formatMoney(minTarget)}`;
+            confirmBtn.textContent = `Raise above ${formatMoney(state.currentBet)}`;
           } else if (stagedBetConfirmArmed) {
             stackContainer.classList.add('armed-pulse');
             confirmBtn.className = 'confirm-staged-bet-btn armed-pulse';
@@ -6629,18 +6682,18 @@
       renderAll();
     });
 
-    // Purge any legacy cached builds and register Network-First Service Worker (poker-chips-v1.6.1)
+    // Purge any legacy cached builds and register Network-First Service Worker (poker-chips-v1.6.2)
     if ('caches' in window) {
       caches.keys().then(keys => {
         keys.forEach(k => {
-          if (k !== 'poker-chips-v1.6.1') caches.delete(k);
+          if (k !== 'poker-chips-v1.6.2') caches.delete(k);
         });
       }).catch(() => {});
     }
 
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js?v=1.6.1', { updateViaCache: 'none' })
+        navigator.serviceWorker.register('./sw.js?v=1.6.2', { updateViaCache: 'none' })
           .then(reg => {
             try { reg.update(); } catch (_) {}
           })
