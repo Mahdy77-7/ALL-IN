@@ -676,41 +676,116 @@
       transform: translate3d(0, -2px, 0);
     }
 
-    /* Center Pot 3D Chip Stack Target */
+    /* Center Pot 3D Chip Stack Target & Reusable VisualChipStack */
     .center-pot-stack-anchor {
       position: relative;
-      width: 42px;
-      height: 28px;
+      min-width: 68px;
+      min-height: 36px;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      gap: 6px;
+      padding-top: 6px;
+    }
+
+    .visual-chip-stack {
+      display: inline-flex;
+      align-items: flex-end;
+      justify-content: center;
+      gap: 5px;
+      pointer-events: none;
+    }
+
+    .visual-chip-col {
+      position: relative;
+      width: 28px;
+      height: 26px;
       display: flex;
       align-items: center;
       justify-content: center;
     }
 
-    .center-pot-disc {
+    .visual-chip-col.mini {
+      width: 22px;
+      height: 20px;
+    }
+
+    .visual-chip-disc {
       position: absolute;
-      width: 32px;
-      height: 32px;
+      width: 28px;
+      height: 24px;
       border-radius: 50%;
-      box-shadow: 0 3px 6px rgba(0, 0, 0, 0.65);
+      box-shadow: 0 3px 0 rgba(0, 0, 0, 0.78), 0 4px 7px rgba(0, 0, 0, 0.65), inset 0 1px 2px rgba(255, 255, 255, 0.4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
       will-change: transform;
+    }
+
+    .visual-chip-col.mini .visual-chip-disc {
+      width: 21px;
+      height: 18px;
+      box-shadow: 0 2px 0 rgba(0, 0, 0, 0.8), 0 3px 5px rgba(0, 0, 0, 0.6), inset 0 1px 1px rgba(255, 255, 255, 0.35);
+    }
+
+    .visual-chip-disc .chip-inlay {
+      width: 18px;
+      height: 15px;
+      font-size: 0.45rem;
+      border-width: 1px;
+    }
+
+    .visual-chip-col.mini .visual-chip-disc .chip-inlay {
+      width: 13px;
+      height: 11px;
+      font-size: 0.38rem;
+      border-width: 1px;
+    }
+
+    /* Per-Player Street Bet 3D Chip Stack on the Felt */
+    .seat-street-bet-stack {
+      position: absolute;
+      transform: translate3d(-50%, -50%, 0);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 2px;
+      z-index: 5;
+      pointer-events: none;
+      transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.25s ease;
+    }
+
+    .seat-street-bet-amount {
+      font-family: var(--font-mono);
+      font-size: 0.64rem;
+      font-weight: 900;
+      padding: 1px 6px;
+      border-radius: 999px;
+      background: rgba(9, 17, 15, 0.9);
+      border: 1px solid rgba(245, 184, 65, 0.55);
+      color: var(--gold);
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
+      white-space: nowrap;
     }
 
     /* Interactive 3D Stacked Staging Pile in Front of Active Player */
     .staging-pile-zone {
       position: relative;
-      min-height: 68px;
+      min-height: 78px;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      z-index: 8;
+      z-index: 12;
       cursor: pointer;
+      touch-action: none;
     }
 
     .staging-chips-stack {
       position: relative;
-      width: 56px;
-      height: 48px;
+      min-width: 64px;
+      height: 50px;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -719,7 +794,7 @@
 
     @keyframes stackMicroSettle {
       0% { transform: translate3d(0, 0, 0) scale(1); }
-      40% { transform: translate3d(0, 2px, 0) scale(1.04, 0.96); }
+      40% { transform: translate3d(0, 2px, 0) scale(1.05, 0.95); }
       75% { transform: translate3d(0, -1px, 0) scale(0.99, 1.01); }
       100% { transform: translate3d(0, 0, 0) scale(1); }
     }
@@ -730,10 +805,10 @@
 
     .staged-chip-disc {
       position: absolute;
-      width: 42px;
-      height: 42px;
+      width: 44px;
+      height: 40px;
       border-radius: 50%;
-      box-shadow: 0 3px 5px rgba(0, 0, 0, 0.72), inset 0 1px 2px rgba(255, 255, 255, 0.35);
+      box-shadow: 0 3px 0 rgba(0, 0, 0, 0.82), 0 5px 8px rgba(0, 0, 0, 0.72), inset 0 1px 2px rgba(255, 255, 255, 0.38);
       display: flex;
       align-items: center;
       justify-content: center;
@@ -742,29 +817,111 @@
     }
 
     .staged-chip-disc .chip-inlay {
-      width: 28px;
-      height: 28px;
+      width: 29px;
+      height: 26px;
       font-size: 0.6rem;
     }
 
     .staging-pile-label {
-      margin-top: 6px;
+      margin-top: 4px;
       font-family: var(--font-mono);
-      font-size: 0.74rem;
+      font-size: 0.72rem;
       font-weight: 800;
       padding: 2px 9px;
       border-radius: 999px;
       background: rgba(245, 184, 65, 0.16);
       border: 1px solid rgba(245, 184, 65, 0.45);
       color: var(--gold);
+      transition: opacity 0.35s ease, transform 0.25s ease;
     }
 
     .staging-empty-hint {
       margin-top: 6px;
       font-size: 0.72rem;
-      font-weight: 600;
-      color: var(--text-muted);
-      letter-spacing: 0.03em;
+      font-weight: 700;
+      color: var(--text-secondary);
+      letter-spacing: 0.02em;
+      text-align: center;
+      transition: opacity 0.38s ease, transform 0.3s ease;
+    }
+
+    .hint-hidden {
+      opacity: 0 !important;
+      pointer-events: none !important;
+    }
+
+    @keyframes stagedArmedGoldPulse {
+      0%, 100% {
+        transform: scale(1);
+        box-shadow: 0 0 0 2px #FEF08A, 0 0 24px rgba(245, 184, 65, 0.9);
+      }
+      50% {
+        transform: scale(1.06);
+        box-shadow: 0 0 0 4px #FFFFFF, 0 0 32px rgba(253, 224, 71, 1);
+      }
+    }
+
+    @keyframes minRaiseShake {
+      0%, 100% { transform: translate3d(0, 0, 0); }
+      20% { transform: translate3d(-7px, 0, 0); }
+      40% { transform: translate3d(7px, 0, 0); }
+      60% { transform: translate3d(-5px, 0, 0); }
+      80% { transform: translate3d(5px, 0, 0); }
+    }
+
+    .shake-error {
+      animation: minRaiseShake 0.36s cubic-bezier(0.36, 0.07, 0.19, 0.97) !important;
+    }
+
+    /* Glowing Gold Confirm / Lock-In Staged Bet Button on Felt */
+    @keyframes lockInGoldPulse {
+      0%, 100% {
+        box-shadow: 0 4px 16px rgba(245, 184, 65, 0.42), 0 0 0 1.5px rgba(255, 255, 255, 0.55);
+      }
+      50% {
+        box-shadow: 0 6px 24px rgba(245, 184, 65, 0.75), 0 0 0 3px rgba(253, 230, 138, 0.9);
+      }
+    }
+
+    .confirm-staged-bet-btn {
+      display: none;
+      margin-top: 6px;
+      padding: 7px 16px;
+      border-radius: 999px;
+      background: linear-gradient(180deg, #FDE047 0%, #F59E0B 100%);
+      color: #1A1102;
+      font-family: var(--font-sans);
+      font-size: 0.76rem;
+      font-weight: 900;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      cursor: pointer;
+      animation: lockInGoldPulse 1.6s infinite ease-in-out;
+      transition: transform 0.12s ease, background 0.15s ease, color 0.15s ease;
+      z-index: 15;
+      user-select: none;
+      touch-action: none;
+    }
+
+    .confirm-staged-bet-btn.armed-pulse {
+      background: linear-gradient(180deg, #FEF9C3 0%, #FACC15 100%);
+      color: #0F172A;
+      animation: stagedArmedGoldPulse 0.75s infinite ease-in-out;
+    }
+
+    .staging-chips-stack.armed-pulse {
+      filter: drop-shadow(0 0 14px rgba(253, 224, 71, 0.85));
+    }
+
+    .confirm-staged-bet-btn:active {
+      transform: scale(0.95);
+    }
+
+    .confirm-staged-bet-btn.needs-more {
+      background: rgba(245, 184, 65, 0.18);
+      color: #FDE68A;
+      border: 1.5px dashed var(--gold);
+      animation: none;
     }
 
     /* Seats Layer */
@@ -983,22 +1140,38 @@
       cursor: pointer;
     }
 
-    /* Subtle Quick-Fill Buttons above Chip Rack */
+    /* Subtle Swipe Prompt + Quick-Fill Pills above Chip Rack */
+    .swipe-toss-hint-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+      padding: 0 2px;
+    }
+
+    .swipe-toss-prompt {
+      font-size: 0.68rem;
+      font-weight: 800;
+      color: var(--text-secondary);
+      letter-spacing: 0.02em;
+      white-space: nowrap;
+    }
+
     .quick-fill-row {
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 6px;
+      gap: 5px;
     }
 
     .quick-fill-pill {
-      padding: 5px 11px;
+      padding: 4px 9px;
       border-radius: 8px;
       background: var(--surface-1);
       border: 1px solid var(--border-subtle);
-      font-size: 0.72rem;
+      font-size: 0.68rem;
       font-weight: 800;
-      letter-spacing: 0.03em;
+      letter-spacing: 0.02em;
       color: var(--text-secondary);
       cursor: pointer;
       transition: transform 0.12s ease, border-color 0.12s ease, color 0.12s ease;
@@ -1010,36 +1183,44 @@
       color: var(--gold);
     }
 
-    /* 3D Tactile Casino Chip Rack (Arc of ribbed chips) */
+    /* 3D Tactile Casino Chip Rack (Swipe-to-Throw Physical Tray) */
     .chip-rack-arc {
+      position: relative;
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 8px;
-      padding: 4px 2px 6px;
-      min-height: 62px;
+      gap: 9px;
+      padding: 8px 6px 10px;
+      min-height: 68px;
+      background: linear-gradient(180deg, rgba(16, 29, 25, 0.72) 0%, rgba(7, 14, 12, 0.92) 100%);
+      border: 1px solid var(--border-subtle);
+      border-radius: 20px;
+      box-shadow: inset 0 3px 10px rgba(0, 0, 0, 0.65);
     }
 
     .casino-chip {
       position: relative;
-      width: 52px;
-      height: 52px;
+      width: 54px;
+      height: 54px;
       border-radius: 50%;
-      cursor: pointer;
+      cursor: grab;
       display: flex;
       align-items: center;
       justify-content: center;
-      box-shadow: 0 6px 14px rgba(0, 0, 0, 0.55), inset 0 2px 3px rgba(255, 255, 255, 0.35);
+      box-shadow: 0 5px 0 rgba(0, 0, 0, 0.75), 0 8px 16px rgba(0, 0, 0, 0.6), inset 0 2px 3px rgba(255, 255, 255, 0.38);
       will-change: transform;
-      transition: transform 0.14s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.15s ease;
+      transition: transform 0.16s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.15s ease, box-shadow 0.16s ease;
       touch-action: none;
     }
 
-    .casino-chip:nth-child(1), .casino-chip:nth-last-child(1) { transform: translate3d(0, 4px, 0); }
+    .casino-chip:nth-child(1), .casino-chip:nth-last-child(1) { transform: translate3d(0, 3px, 0); }
     .casino-chip:nth-child(2), .casino-chip:nth-last-child(2) { transform: translate3d(0, 1px, 0); }
 
-    .casino-chip:active {
-      transform: translate3d(0, -6px, 0) scale(0.94) !important;
+    .casino-chip.dragging-chip {
+      transition: none !important;
+      z-index: 90;
+      cursor: grabbing;
+      box-shadow: 0 18px 26px rgba(0, 0, 0, 0.72), 0 0 16px rgba(245, 184, 65, 0.45), inset 0 2px 3px rgba(255, 255, 255, 0.5);
     }
 
     /* Recessed Center Inlay */
@@ -1088,43 +1269,43 @@
       position: fixed;
       top: 0;
       left: 0;
-      width: 46px;
-      height: 46px;
-      margin-left: -23px;
-      margin-top: -23px;
+      width: 48px;
+      height: 48px;
+      margin-left: -24px;
+      margin-top: -24px;
       border-radius: 50%;
       z-index: 260;
       pointer-events: none;
       display: flex;
       align-items: center;
       justify-content: center;
-      box-shadow: inset 0 2px 3px rgba(255, 255, 255, 0.38);
+      box-shadow: 0 4px 0 rgba(0, 0, 0, 0.78), inset 0 2px 3px rgba(255, 255, 255, 0.42);
       will-change: transform, filter, opacity;
       backface-visibility: hidden;
       -webkit-backface-visibility: hidden;
     }
 
     .flying-chip-3d .chip-inlay {
-      width: 31px;
-      height: 31px;
-      font-size: 0.64rem;
+      width: 32px;
+      height: 32px;
+      font-size: 0.65rem;
     }
 
-    /* Primary 4-Button Action Bar */
+    /* Streamlined Turn Bar (FOLD on Left, CHECK / CALL $X on Right) + Shove All-In Handle */
     .action-bar {
       display: grid;
-      grid-template-columns: 0.95fr 1.3fr 1.3fr 0.9fr;
+      grid-template-columns: 1fr 1.35fr;
       gap: 8px;
     }
 
     .act-btn {
-      height: 54px;
+      height: 52px;
       border-radius: 15px;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      padding: 0 6px;
+      padding: 0 10px;
       font-weight: 800;
       cursor: pointer;
       transition: transform 0.1s ease, background 0.15s ease, opacity 0.15s ease;
@@ -1135,23 +1316,23 @@
     }
 
     .act-main-label {
-      font-size: 0.86rem;
+      font-size: 0.88rem;
       letter-spacing: 0.03em;
       text-transform: uppercase;
     }
 
     .act-sub-label {
       font-family: var(--font-mono);
-      font-size: 0.72rem;
-      font-weight: 700;
-      opacity: 0.92;
+      font-size: 0.74rem;
+      font-weight: 800;
+      opacity: 0.94;
       margin-top: 1px;
     }
 
     .btn-fold {
       background: var(--danger-muted);
       color: var(--danger-text);
-      border: 1px solid rgba(225, 29, 72, 0.3);
+      border: 1px solid rgba(225, 29, 72, 0.32);
     }
 
     .btn-fold.armed {
@@ -1170,16 +1351,33 @@
       color: #1B1202;
     }
 
-    .btn-allin {
-      background: transparent;
-      color: var(--danger-text);
-      border: 1.5px solid rgba(225, 29, 72, 0.45);
+    /* Swipe-Up to Shove All-In Handle */
+    .shove-allin-handle {
+      position: relative;
+      height: 36px;
+      border-radius: 12px;
+      background: linear-gradient(180deg, rgba(225, 29, 72, 0.16) 0%, rgba(225, 29, 72, 0.08) 100%);
+      border: 1px dashed rgba(225, 29, 72, 0.5);
+      color: #FDA4AF;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 14px;
+      font-size: 0.72rem;
+      font-weight: 900;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      cursor: grab;
+      touch-action: none;
+      user-select: none;
+      transition: transform 0.16s cubic-bezier(0.22, 1, 0.36, 1), background 0.16s ease, border-color 0.16s ease;
     }
 
-    .btn-allin.armed {
+    .shove-allin-handle.armed {
       background: var(--danger);
-      color: #FFF;
-      border-color: #FFF;
+      color: #FFFFFF;
+      border-style: solid;
+      border-color: #FFFFFF;
     }
 
     /* ==========================================================
@@ -1634,7 +1832,7 @@
       </button>
 
       <div style="margin-top:6px; display:flex; justify-content:center;">
-        <span class="app-version-badge" data-version-badge>v1.5</span>
+        <span class="app-version-badge" data-version-badge>v1.6.1</span>
       </div>
     </div>
   </section>
@@ -1646,7 +1844,7 @@
     <div class="lobby-card">
       <div class="lobby-top-bar">
         <button class="lobby-back-btn" onclick="showScreen('homeScreen')">← Home</button>
-        <span class="lobby-title">Host Lobby <span class="app-version-badge" data-version-badge style="padding:1px 6px; font-size:0.6rem; margin-left:4px;">v1.5</span></span>
+        <span class="lobby-title">Host Lobby <span class="app-version-badge" data-version-badge style="padding:1px 6px; font-size:0.6rem; margin-left:4px;">v1.6.1</span></span>
         <span id="hostRelayStatusBadge" style="font-size:0.68rem; font-weight:800; padding:4px 8px; border-radius:999px; background:rgba(16,185,129,0.12); border:1px solid rgba(16,185,129,0.35); color:#A7F3D0; white-space:nowrap;">🟡 Connecting...</span>
       </div>
 
@@ -1716,7 +1914,7 @@
     <div class="lobby-card">
       <div class="lobby-top-bar">
         <button class="lobby-back-btn" onclick="leaveRoomAsGuest()">← Leave</button>
-        <span class="lobby-title">Join Table <span class="app-version-badge" data-version-badge style="padding:1px 6px; font-size:0.6rem; margin-left:4px;">v1.5</span></span>
+        <span class="lobby-title">Join Table <span class="app-version-badge" data-version-badge style="padding:1px 6px; font-size:0.6rem; margin-left:4px;">v1.6.1</span></span>
         <span id="clientRelayStatusBadge" style="font-size:0.68rem; font-weight:800; padding:4px 8px; border-radius:999px; background:rgba(16,185,129,0.12); border:1px solid rgba(16,185,129,0.35); color:#A7F3D0; white-space:nowrap;">🟡 Connecting...</span>
       </div>
 
@@ -1824,18 +2022,21 @@
           <div id="centerPotStackAnchor" class="center-pot-stack-anchor"></div>
         </div>
 
-        <!-- 3D Stacked Staging Pile in Front of Active Player (Tap to Pull Back) -->
-        <div id="stagingPileZone" class="staging-pile-zone" onclick="pullBackTopStagedChip()" title="Tap pile to pull back top chip">
+        <!-- 3D Stacked Staging Pile in Front of Active Player (Double-Tap to Confirm Bet, Slide Down to Pull Back) -->
+        <div id="stagingPileZone" class="staging-pile-zone" title="Double-tap to confirm bet • Slide down to pull back chips">
           <div id="stagingChipsStack" class="staging-chips-stack"></div>
-          <div id="stagingPileLabel" class="staging-empty-hint">Tap chips below to stage bet</div>
+          <div id="stagingPileLabel" class="staging-empty-hint">⬆️ Swipe chips up onto the table to Bet / Raise</div>
+          <button id="confirmStagedBetBtn" class="confirm-staged-bet-btn">
+            Double-Tap to Bet $0
+          </button>
         </div>
       </div>
 
-      <!-- Dynamic Player Oval Badges -->
+      <!-- Dynamic Player Oval Badges + Street Bet 3D Chip Stacks -->
       <div id="seatsLayer" class="seats-layer"></div>
     </main>
 
-    <!-- 3. BOTTOM ZONE: SPECTATOR BANNER, TURN STATUS BANNER, OR QUICK-FILL PILLS + 3D CHIP RACK + ACTION BAR -->
+    <!-- 3. BOTTOM ZONE: SPECTATOR BANNER, TURN STATUS BANNER, OR PHYSICAL SWIPE-TO-THROW CHIP TRAY + ACTION BAR -->
     <div>
       <!-- Connected Wi-Fi Phone Spectator Banner -->
       <div id="spectatorClientBanner" class="spectator-client-banner">
@@ -1853,18 +2054,21 @@
       </div>
 
       <footer id="actionDock" class="bottom-zone">
-        <!-- Subtle Quick-Fill Pills -->
-        <div class="quick-fill-row">
-          <button id="qfMinBtn" class="quick-fill-pill" onclick="quickStagePreset('min', this)">Min Raise</button>
-          <button id="qfHalfBtn" class="quick-fill-pill" onclick="quickStagePreset('half', this)">½ Pot</button>
-          <button id="qfPotBtn" class="quick-fill-pill" onclick="quickStagePreset('pot', this)">Pot</button>
-          <button id="qfClearBtn" class="quick-fill-pill" onclick="clearStagedChipsAnimated()">Clear</button>
+        <!-- Swipe Prompt + Subtle Quick-Toss Pills -->
+        <div class="swipe-toss-hint-bar">
+          <span id="swipeTrayHintText" class="swipe-toss-prompt">⬆️ Flick / swipe chips onto felt</span>
+          <div class="quick-fill-row">
+            <button id="qfMinBtn" class="quick-fill-pill" onclick="quickStagePreset('min', this)">+Min Raise</button>
+            <button id="qfHalfBtn" class="quick-fill-pill" onclick="quickStagePreset('half', this)">+½ Pot</button>
+            <button id="qfPotBtn" class="quick-fill-pill" onclick="quickStagePreset('pot', this)">+Pot</button>
+            <button id="qfClearBtn" class="quick-fill-pill" onclick="clearStagedChipsAnimated()">Clear</button>
+          </div>
         </div>
 
-        <!-- 3D Tactile Casino Chip Rack ($1, $5, $25, $100, $500, $1000) -->
+        <!-- 3D Tactile Casino Chip Rack ($1, $5, $25, $100, $500, $1000) — Swipe Up to Toss -->
         <div id="chipRackArc" class="chip-rack-arc"></div>
 
-        <!-- 4 Thumb-Friendly Action Buttons -->
+        <!-- Streamlined 2-Button Action Bar (FOLD + CHECK/CALL) -->
         <div class="action-bar">
           <button id="btnFold" class="act-btn btn-fold" onclick="handleFoldTap()">
             <span id="foldMainLabel" class="act-main-label">Fold</span>
@@ -1875,16 +2079,12 @@
             <span id="callMainLabel" class="act-main-label">Check</span>
             <span id="callSubLabel" class="act-sub-label"></span>
           </button>
+        </div>
 
-          <button id="btnRaise" class="act-btn btn-raise" onclick="handleRaiseConfirmTap(this)">
-            <span id="raiseMainLabel" class="act-main-label">Raise</span>
-            <span id="raiseSubLabel" class="act-sub-label"></span>
-          </button>
-
-          <button id="btnAllIn" class="act-btn btn-allin" onclick="handleAllInTap(this)">
-            <span id="allInMainLabel" class="act-main-label">All-In</span>
-            <span id="allInSubLabel" class="act-sub-label"></span>
-          </button>
+        <!-- Tactile Swipe-Up to Shove All-In Handle -->
+        <div id="shoveAllInHandle" class="shove-allin-handle" onclick="handleAllInTap(this)">
+          <span id="allInMainLabel">⬆️ Swipe Up to Shove All-In</span>
+          <span id="allInSubLabel" style="font-family:var(--font-mono); font-weight:900;">$1,000</span>
         </div>
       </footer>
     </div>
@@ -2310,6 +2510,25 @@
         }
       },
 
+      reverseChipSlide() {
+        this.vibrate(10);
+        if (!this.enabled) return;
+        this.init();
+        if (!this.ctx) return;
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(1650, now);
+        osc.frequency.exponentialRampToValueAtTime(720, now + 0.085);
+        gain.gain.setValueAtTime(0.11, now);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.09);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.095);
+      },
+
       woodCheck() {
         this.vibrate([15, 55, 18]);
         if (!this.enabled) return;
@@ -2514,32 +2733,32 @@
 
       if (mode === 'throw') {
         const midX = startX + (endX - startX) * 0.45 + (Math.random() * 14 - 7);
-        const midY = startY + (endY - startY) * 0.45 - 46;
+        const midY = startY + (endY - startY) * 0.45 - 52;
 
         keyframes = [
           {
             offset: 0,
             opacity: 1,
             transform: `translate3d(${startX}px, ${startY}px, 0) scale(${startScale}) rotateZ(0deg) rotateX(0deg)`,
-            filter: 'drop-shadow(0 4px 5px rgba(0,0,0,0.45))'
+            filter: 'drop-shadow(0 5px 6px rgba(0,0,0,0.5))'
           },
           {
             offset: 0.45,
             opacity: 1,
-            transform: `translate3d(${midX}px, ${midY}px, 0) scale(1.22) rotateZ(${Math.round(spinDeg * 0.55)}deg) rotateX(25deg)`,
-            filter: 'drop-shadow(0 18px 14px rgba(0,0,0,0.55))'
+            transform: `translate3d(${midX}px, ${midY}px, 0) scale(1.25) rotateZ(${Math.round(spinDeg * 0.55)}deg) rotateX(26deg)`,
+            filter: 'drop-shadow(0 22px 16px rgba(0,0,0,0.65))'
           },
           {
             offset: 0.86,
             opacity: 1,
             transform: `translate3d(${endX}px, ${endY - 3}px, 0) scale(${endScale * 1.04}) rotateZ(${Math.round(spinDeg * 0.96)}deg) rotateX(6deg)`,
-            filter: 'drop-shadow(0 5px 6px rgba(0,0,0,0.65))'
+            filter: 'drop-shadow(0 6px 7px rgba(0,0,0,0.68))'
           },
           {
             offset: 1,
             opacity: 1,
             transform: `translate3d(${endX}px, ${endY}px, 0) scale(${endScale}) rotateZ(${spinDeg}deg) rotateX(0deg)`,
-            filter: 'drop-shadow(0 3px 4px rgba(0,0,0,0.7))'
+            filter: 'drop-shadow(0 3px 4px rgba(0,0,0,0.72))'
           }
         ];
         easingCurve = 'cubic-bezier(0.22, 1, 0.36, 1)';
@@ -2651,7 +2870,7 @@
     /* ==========================================================
        4. LOBBY, NETWORKING & POKER STATE MACHINE
        ========================================================== */
-    const APP_VERSION = 'v1.5';
+    const APP_VERSION = 'v1.6.1';
     const STORAGE_KEY = 'felt_poker_state_v3';
     const DEVICE_ID_KEY = 'felt_device_id_v3';
     const STREETS = ['Pre-Flop', 'Flop', 'Turn', 'River', 'Showdown'];
@@ -2779,6 +2998,50 @@
     let allInArmed = false;
     let allInArmTimer = null;
 
+    // Double-tap confirmation state for Staged Bet / Raise
+    let stagedBetConfirmArmed = false;
+    let stagedBetConfirmTimer = null;
+    let lastStagedBetTapTime = 0;
+
+    // Auto-hide center instructional hint state (Hand #1 only: (state.handNumber || 1) === 1 && !hasDismissedHints)
+    const SWIPE_HINT_SESSION_KEY = 'felt_has_seen_swipe_hint_v1';
+    let hasSeenSwipeHint = false;
+    let hasDismissedHints = false;
+    try {
+      hasSeenSwipeHint = sessionStorage.getItem(SWIPE_HINT_SESSION_KEY) === '1';
+      hasDismissedHints = hasSeenSwipeHint;
+    } catch (_) {}
+    let swipeHintAutoHideTimer = null;
+
+    function markSwipeHintSeen() {
+      if (hasSeenSwipeHint && hasDismissedHints) return;
+      hasSeenSwipeHint = true;
+      hasDismissedHints = true;
+      clearTimeout(swipeHintAutoHideTimer);
+      try {
+        sessionStorage.setItem(SWIPE_HINT_SESSION_KEY, '1');
+      } catch (_) {}
+      const pileLabel = document.getElementById('stagingPileLabel');
+      if (pileLabel && stagedChips.length === 0 && state.streetIndex !== 4) {
+        pileLabel.classList.add('hint-hidden');
+        pileLabel.textContent = '';
+      }
+      const trayHint = document.getElementById('swipeTrayHintText');
+      if (trayHint) {
+        trayHint.classList.add('hint-hidden');
+        trayHint.style.display = 'none';
+      }
+    }
+
+    function scheduleSwipeHintAutoHide() {
+      const showOnboardingHints = (state.handNumber || 1) === 1 && !hasDismissedHints;
+      if (!showOnboardingHints) return;
+      clearTimeout(swipeHintAutoHideTimer);
+      swipeHintAutoHideTimer = setTimeout(() => {
+        markSwipeHintSeen();
+      }, 3000);
+    }
+
     let splitPotMode = false;
     let selectedWinnerIds = new Set();
     let pendingPotsQueue = [];
@@ -2814,6 +3077,9 @@
         const el = document.getElementById(id);
         if (el) el.classList.toggle('active', id === screenId);
       });
+      if (screenId === null) {
+        scheduleSwipeHintAutoHide();
+      }
     }
 
     function getHostTopic(code) {
@@ -3679,7 +3945,7 @@
       state.status = 'playing';
       state.phase = 'game';
       state.screen = 'game';
-      state.handNumber = 0;
+      state.handNumber = 1;
       state.dealerIdx = 0;
       undoHistory = [];
       showScreen(null);
@@ -3704,7 +3970,7 @@
       state.status = 'playing';
       state.phase = 'game';
       state.screen = 'game';
-      state.handNumber = 0;
+      state.handNumber = 1;
       state.dealerIdx = 0;
       undoHistory = [];
       showScreen(null);
@@ -4694,14 +4960,17 @@
         return;
       }
 
-      // Rotate Dealer (completely excluding Spectators!)
+      // Rotate Dealer (completely excluding Spectators!) and track handNumber (Hand #1 -> Hand #2+)
       if (rotateDealer) {
-        state.handNumber += 1;
+        state.handNumber = (state.handNumber || 1) + 1;
         const nextD = findNextSeatIndex(state.dealerIdx, p => !p.isSpectator && p.stack > 0);
         if (nextD !== -1) state.dealerIdx = nextD;
-      } else if (state.players[state.dealerIdx]?.isSpectator || state.players[state.dealerIdx]?.stack <= 0) {
-        const nextD = findNextSeatIndex(state.dealerIdx, p => !p.isSpectator && p.stack > 0);
-        if (nextD !== -1) state.dealerIdx = nextD;
+      } else {
+        state.handNumber = state.handNumber || 1;
+        if (state.players[state.dealerIdx]?.isSpectator || state.players[state.dealerIdx]?.stack <= 0) {
+          const nextD = findNextSeatIndex(state.dealerIdx, p => !p.isSpectator && p.stack > 0);
+          if (nextD !== -1) state.dealerIdx = nextD;
+        }
       }
 
       state.streetIndex = 0;
@@ -4848,7 +5117,7 @@
       const out = [];
       const vals = [1000, 500, 100, 25, 5, 1];
       for (const v of vals) {
-        while (rem >= v && out.length < 22) {
+        while (rem >= v && out.length < 24) {
           out.push(v);
           rem -= v;
         }
@@ -4856,13 +5125,62 @@
       return out;
     }
 
+    // Breaks any dollar amount down into grouped 3D isometric casino chip columns ($1000 Gold, $500 Purple, $100 Black, $25 Green, $5 Red, $1 White)
+    function renderVisualChipStackHTML(amount, opts = {}) {
+      const { mini = false, maxCols = 4, maxPerCol = 6 } = opts;
+      let rem = Math.max(0, Math.round(amount));
+      if (rem <= 0) return '';
+
+      const denomsDesc = [1000, 500, 100, 25, 5, 1];
+      const columns = [];
+      for (const d of denomsDesc) {
+        if (rem >= d && columns.length < maxCols) {
+          const count = Math.floor(rem / d);
+          rem -= count * d;
+          columns.push({ denom: d, count: Math.min(maxPerCol, count) });
+        }
+      }
+      if (columns.length === 0) {
+        columns.push({ denom: 1, count: 1 });
+      }
+
+      const stepY = mini ? 2.5 : 3.2;
+      const colCls = mini ? 'visual-chip-col mini' : 'visual-chip-col';
+
+      const colsHTML = columns.map(col => {
+        const meta = getDenomMeta(col.denom);
+        let discsHTML = '';
+        for (let i = 0; i < col.count; i++) {
+          const yOff = -(i * stepY).toFixed(1);
+          discsHTML += `
+            <div class="visual-chip-disc ${meta.cls}" style="transform:translate3d(0, ${yOff}px, 0);">
+              <div class="chip-inlay">$${col.denom}</div>
+            </div>
+          `;
+        }
+        return `<div class="${colCls}">${discsHTML}</div>`;
+      }).join('');
+
+      return `<div class="visual-chip-stack">${colsHTML}</div>`;
+    }
+
     function findRackChipElement(denom) {
       return document.querySelector(`#chipRackArc .casino-chip[data-denom="${denom}"]`) ||
              document.getElementById('chipRackArc');
     }
 
-    function throwChipFromRack(denom, sourceEl) {
+    function disarmStagedBetConfirm() {
+      stagedBetConfirmArmed = false;
+      clearTimeout(stagedBetConfirmTimer);
+      lastStagedBetTapTime = 0;
+      document.getElementById('confirmStagedBetBtn')?.classList.remove('armed-pulse');
+      document.getElementById('stagingChipsStack')?.classList.remove('armed-pulse');
+    }
+
+    function throwChipFromRack(denom, sourceEl, releaseCoords = null) {
       if (!isMyTurnToAct()) return;
+      markSwipeHintSeen();
+      disarmStagedBetConfirm();
       const actor = state.players[state.turnIdx];
       const currentStaged = getStagedDeltaSum();
       if (currentStaged + denom > actor.stack) {
@@ -4871,8 +5189,8 @@
       }
 
       const stackIndex = stagedChips.length;
-      const scatterX = Math.round((Math.random() * 12) - 6);
-      const rotDeg = Math.round((Math.random() * 40) - 20);
+      const scatterX = Math.round((Math.random() * 14) - 7);
+      const rotDeg = Math.round((Math.random() * 44) - 22);
       const chipEntry = { denom, scatterX, rotDeg, landing: true };
       stagedChips.push(chipEntry);
 
@@ -4880,10 +5198,12 @@
 
       const targetEl = document.getElementById('stagingChipsStack');
       const sEl = sourceEl || findRackChipElement(denom);
-      if (sEl && targetEl) {
-        const sRect = sEl.getBoundingClientRect();
+      if ((releaseCoords || sEl) && targetEl) {
+        const sRect = releaseCoords
+          ? { left: releaseCoords.x - 24, top: releaseCoords.y - 24, width: 48, height: 48 }
+          : sEl.getBoundingClientRect();
         const tRect = targetEl.getBoundingClientRect();
-        const visibleSlotIndex = Math.min(stackIndex, 9);
+        const visibleSlotIndex = Math.min(stackIndex, 10);
 
         animateChipFlight({
           denom,
@@ -4892,10 +5212,11 @@
           targetOffsetX: scatterX,
           targetOffsetY: -visibleSlotIndex * 4,
           delay: 0,
-          duration: 340,
+          duration: 330,
           mode: 'throw',
           onLand: () => {
             chipEntry.landing = false;
+            Sound.vibrate(15);
             Sound.chipThrow(1 + Math.min(0.32, denom / 1600), stackIndex * 28);
             renderStagingPileOnly();
             triggerStackMicroBounce();
@@ -4903,12 +5224,15 @@
         });
       } else {
         chipEntry.landing = false;
+        Sound.vibrate(15);
         Sound.chipThrow(1, stackIndex * 28);
         renderStagingPileOnly();
       }
     }
 
     function launchStaggeredMultiChipToss(denomList, fallbackOriginEl = null) {
+      markSwipeHintSeen();
+      disarmStagedBetConfirm();
       const targetEl = document.getElementById('stagingChipsStack');
       const tRect = targetEl ? targetEl.getBoundingClientRect() : null;
 
@@ -4925,7 +5249,7 @@
       entries.forEach((entry, idx) => {
         const rackChipEl = findRackChipElement(entry.denom) || fallbackOriginEl;
         const fromRect = rackChipEl ? rackChipEl.getBoundingClientRect() : tRect;
-        const visibleSlotIndex = Math.min(idx, 9);
+        const visibleSlotIndex = Math.min(idx, 10);
 
         animateChipFlight({
           denom: entry.denom,
@@ -4933,11 +5257,12 @@
           toRect: tRect,
           targetOffsetX: entry.scatterX,
           targetOffsetY: -visibleSlotIndex * 4,
-          delay: idx * 35,
-          duration: 350,
+          delay: idx * 32,
+          duration: 340,
           mode: 'throw',
           onLand: () => {
             entry.landing = false;
+            Sound.vibrate(12);
             Sound.chipThrow(0.98 + Math.min(0.28, entry.denom / 1800), idx * 32);
             renderStagingPileOnly();
             triggerStackMicroBounce();
@@ -4948,18 +5273,20 @@
 
     function pullBackTopStagedChip() {
       if (!isMyTurnToAct() || stagedChips.length === 0) return;
+      disarmStagedBetConfirm();
 
       const topIndex = stagedChips.length - 1;
       const removedEntry = stagedChips.pop();
       const stackEl = document.getElementById('stagingChipsStack');
       const rackSlotEl = findRackChipElement(removedEntry.denom);
 
+      Sound.reverseChipSlide();
       renderStagingPileAndDock();
 
       if (stackEl && rackSlotEl) {
         const sRect = stackEl.getBoundingClientRect();
         const rRect = rackSlotEl.getBoundingClientRect();
-        const visibleSlotIndex = Math.min(topIndex, 9);
+        const visibleSlotIndex = Math.min(topIndex, 10);
 
         const adjustedFromRect = {
           left: sRect.left + removedEntry.scatterX,
@@ -4973,36 +5300,36 @@
           fromRect: adjustedFromRect,
           toRect: rRect,
           delay: 0,
-          duration: 260,
+          duration: 250,
           mode: 'pullback',
           onLand: () => {
             Sound.chipThrow(0.84, -40);
           }
         });
-      } else {
-        Sound.chipThrow(0.84, -40);
       }
     }
 
     function clearStagedChipsAnimated() {
       if (!isMyTurnToAct() || stagedChips.length === 0) return;
+      disarmStagedBetConfirm();
       const copy = stagedChips.slice().reverse();
       stagedChips = [];
+      Sound.reverseChipSlide();
       renderStagingPileAndDock();
 
       const stackEl = document.getElementById('stagingChipsStack');
       if (!stackEl) return;
       const sRect = stackEl.getBoundingClientRect();
 
-      copy.slice(0, 6).forEach((entry, i) => {
+      copy.slice(0, 7).forEach((entry, i) => {
         const rackSlotEl = findRackChipElement(entry.denom);
         if (!rackSlotEl) return;
         animateChipFlight({
           denom: entry.denom,
           fromRect: sRect,
           toRect: rackSlotEl.getBoundingClientRect(),
-          delay: i * 25,
-          duration: 260,
+          delay: i * 24,
+          duration: 250,
           mode: 'pullback',
           onLand: () => {
             Sound.chipThrow(0.84, -i * 20);
@@ -5052,27 +5379,31 @@
 
       let maxFlightTime = 0;
       bettingSnapshots.forEach((snap, sIdx) => {
-        const seatEl = document.querySelector(`.seat-badge[data-player-id="${snap.id}"]`);
+        const streetStackEl = document.querySelector(`.seat-street-bet-stack[data-street-bet-player-id="${snap.id}"]`);
+        const seatEl = streetStackEl || document.querySelector(`.seat-badge[data-player-id="${snap.id}"]`);
         if (!seatEl) return;
         const fromRect = seatEl.getBoundingClientRect();
-        const chipsToSlide = decomposeAmountToChips(snap.amount).slice(0, 4);
+        if (streetStackEl) {
+          streetStackEl.style.opacity = '0';
+        }
+        const chipsToSlide = decomposeAmountToChips(snap.amount).slice(0, 5);
 
         chipsToSlide.forEach((denom, cIdx) => {
-          const delay = sIdx * 30 + cIdx * 35;
-          const duration = 450;
+          const delay = sIdx * 28 + cIdx * 32;
+          const duration = 430;
           maxFlightTime = Math.max(maxFlightTime, delay + duration);
 
           animateChipFlight({
             denom,
             fromRect,
             toRect,
-            targetOffsetX: Math.round(Math.random() * 8 - 4),
+            targetOffsetX: Math.round(Math.random() * 10 - 5),
             targetOffsetY: -cIdx * 3,
             delay,
             duration,
             mode: 'gather',
-            startScale: 0.78,
-            endScale: 0.72,
+            startScale: 0.82,
+            endScale: 0.74,
             onLand: () => {
               if (cIdx === 0) bumpPot();
             }
@@ -5125,15 +5456,16 @@
     }
 
     /* ==========================================================
-       9. ACTION BUTTON HANDLERS (FOLD, CHECK/CALL, RAISE, ALL-IN)
+       9. ACTION BUTTON HANDLERS (FOLD, CHECK/CALL, LOCK-IN BET, SHOVE ALL-IN)
        ========================================================== */
     function resetSafetyLocks() {
       foldArmed = false;
       clearTimeout(foldArmTimer);
       allInArmed = false;
       clearTimeout(allInArmTimer);
+      disarmStagedBetConfirm();
       document.getElementById('btnFold')?.classList.remove('armed');
-      document.getElementById('btnAllIn')?.classList.remove('armed');
+      document.getElementById('shoveAllInHandle')?.classList.remove('armed');
     }
 
     function sendClientMoveIfRemote(payload) {
@@ -5180,8 +5512,9 @@
 
       if (toCall === 0 && !foldArmed) {
         foldArmed = true;
-        document.getElementById('btnFold').classList.add('armed');
-        document.getElementById('foldSubLabel').textContent = 'TAP AGAIN';
+        document.getElementById('btnFold')?.classList.add('armed');
+        const foldSub = document.getElementById('foldSubLabel');
+        if (foldSub) foldSub.textContent = 'TAP AGAIN';
         Sound.vibrate(12);
         foldArmTimer = setTimeout(() => {
           foldArmed = false;
@@ -5204,8 +5537,63 @@
       advanceTurnOrStreet('FOLD');
     }
 
+    // Launches a visual volley of chips from the player's tray to their seat/table when tapping CALL $X
+    function animateCallVolleyToTable(actor, callAmount, onComplete) {
+      const callChips = decomposeAmountToChips(callAmount).slice(0, 6);
+      const seatStackEl = document.querySelector(`.seat-street-bet-stack[data-street-bet-player-id="${actor.id}"]`) ||
+                          document.querySelector(`.seat-badge[data-player-id="${actor.id}"]`) ||
+                          document.getElementById('stagingChipsStack');
+      const toRect = seatStackEl ? seatStackEl.getBoundingClientRect() : null;
+      if (!toRect || callChips.length === 0) {
+        if (onComplete) onComplete();
+        return;
+      }
+
+      let maxWait = 0;
+      callChips.forEach((denom, idx) => {
+        const rackEl = findRackChipElement(denom) || document.getElementById('btnCall');
+        const fromRect = rackEl ? rackEl.getBoundingClientRect() : toRect;
+        const delay = idx * 28;
+        const duration = 270;
+        maxWait = Math.max(maxWait, delay + duration);
+
+        animateChipFlight({
+          denom,
+          fromRect,
+          toRect,
+          targetOffsetX: Math.round(Math.random() * 10 - 5),
+          targetOffsetY: -idx * 3,
+          delay,
+          duration,
+          mode: 'throw',
+          startScale: 0.95,
+          endScale: 0.78,
+          onLand: () => {
+            Sound.vibrate(12);
+            Sound.chipThrow(1.0 + idx * 0.03, idx * 20);
+          }
+        });
+      });
+
+      setTimeout(() => {
+        if (onComplete) onComplete();
+      }, Math.min(260, maxWait));
+    }
+
     function handleCheckOrCall() {
       if (!isMyTurnToAct()) return;
+      const actor = state.players[state.turnIdx];
+      const toCall = Math.max(0, state.currentBet - actor.streetBet);
+      const callAmt = Math.min(actor.stack, toCall);
+
+      if (callAmt > 0) {
+        animateCallVolleyToTable(actor, callAmt, () => {
+          if (sendClientMoveIfRemote({ type: 'CHECK_CALL' })) return;
+          executeCheckOrCall();
+        });
+        return;
+      }
+
       if (sendClientMoveIfRemote({ type: 'CHECK_CALL' })) return;
       executeCheckOrCall();
     }
@@ -5232,19 +5620,68 @@
       }
     }
 
-    function handleRaiseConfirmTap(btnEl) {
-      if (!isMyTurnToAct()) return;
+    // Double-Tap Confirmation for Staged Bet / Raise (prevents accidental single-tap confirm)
+    function handleRaiseConfirmTap() {
+      if (!isMyTurnToAct() || stagedChips.length === 0) return;
       const actor = state.players[state.turnIdx];
       const { minTarget, maxTotalBet } = getMinRaiseTargetTotal(actor);
       const stagedDelta = getStagedDeltaSum();
-
       const proposedTotal = actor.streetBet + stagedDelta;
-      if (stagedDelta === 0 || (proposedTotal < minTarget && proposedTotal < maxTotalBet)) {
-        quickStagePreset('min', btnEl);
-        showToast(`Staged Min: ${formatMoney(minTarget)} — Tap again to confirm`);
+
+      const confirmBtn = document.getElementById('confirmStagedBetBtn');
+      const zoneEl = document.getElementById('stagingPileZone');
+      const stackEl = document.getElementById('stagingChipsStack');
+
+      // If staged amount is less than legal minRaise and player is not All-In: shake & warn instead of submitting
+      if (proposedTotal < minTarget && proposedTotal < maxTotalBet) {
+        disarmStagedBetConfirm();
+        Sound.vibrate([15, 40, 15]);
+        if (zoneEl) {
+          zoneEl.classList.remove('shake-error');
+          void zoneEl.offsetWidth;
+          zoneEl.classList.add('shake-error');
+          setTimeout(() => zoneEl.classList.remove('shake-error'), 380);
+        }
+        const minLabel = state.currentBet === 0 ? `Min Bet is ${formatMoney(minTarget)}` : `Min Raise is ${formatMoney(minTarget)}`;
+        if (confirmBtn) {
+          confirmBtn.className = 'confirm-staged-bet-btn needs-more';
+          confirmBtn.textContent = minLabel;
+        }
+        showToast(minLabel);
         return;
       }
 
+      const now = performance.now();
+      const isSecondTapWithinWindow = stagedBetConfirmArmed || (now - lastStagedBetTapTime <= 350);
+
+      if (!isSecondTapWithinWindow) {
+        // First Tap: Arm confirmation with gold pulse & "Tap Again to Confirm $X" for 1.5s
+        stagedBetConfirmArmed = true;
+        lastStagedBetTapTime = now;
+        Sound.vibrate(10);
+        Sound.chipThrow(1.06);
+
+        if (confirmBtn) {
+          confirmBtn.classList.remove('needs-more');
+          confirmBtn.classList.add('armed-pulse');
+          confirmBtn.textContent = `Tap Again to Confirm ${formatMoney(proposedTotal)}`;
+        }
+        if (stackEl) {
+          stackEl.classList.add('armed-pulse');
+        }
+
+        clearTimeout(stagedBetConfirmTimer);
+        stagedBetConfirmTimer = setTimeout(() => {
+          stagedBetConfirmArmed = false;
+          lastStagedBetTapTime = 0;
+          renderStagingPileOnly();
+        }, 1500);
+        return;
+      }
+
+      // Second Tap Execution: Lock in bet/raise, play multi-chip confirmation sound, and broadcast
+      disarmStagedBetConfirm();
+      Sound.potGather();
       if (sendClientMoveIfRemote({ type: 'RAISE_TO', targetTotalBet: proposedTotal })) return;
       executeBetOrRaiseTo(proposedTotal);
     }
@@ -5291,14 +5728,29 @@
       advanceTurnOrStreet(cue);
     }
 
+    function triggerAllInShoveCommit(originEl) {
+      if (!isMyTurnToAct()) return;
+      const actor = state.players[state.turnIdx];
+      const allInChips = decomposeAmountToChips(actor.stack).slice(0, 12);
+      launchStaggeredMultiChipToss(allInChips, originEl);
+      Sound.allInCascade();
+      const maxTotalBet = actor.streetBet + actor.stack;
+      setTimeout(() => {
+        if (sendClientMoveIfRemote({ type: 'ALL_IN' })) return;
+        executeBetOrRaiseTo(maxTotalBet);
+      }, 260);
+    }
+
     function handleAllInTap(btnEl) {
       if (!isMyTurnToAct()) return;
       const actor = state.players[state.turnIdx];
+      const handleEl = document.getElementById('shoveAllInHandle');
 
       if (!allInArmed) {
         allInArmed = true;
-        document.getElementById('btnAllIn').classList.add('armed');
-        document.getElementById('allInSubLabel').textContent = 'CONFIRM';
+        handleEl?.classList.add('armed');
+        const mainLbl = document.getElementById('allInMainLabel');
+        if (mainLbl) mainLbl.textContent = '🔥 TAP AGAIN OR SWIPE UP TO CONFIRM ALL-IN';
         const allInChips = decomposeAmountToChips(actor.stack).slice(0, 12);
         launchStaggeredMultiChipToss(allInChips, btnEl);
         Sound.vibrate(20);
@@ -5592,17 +6044,9 @@
 
       const potStackAnchor = document.getElementById('centerPotStackAnchor');
       if (potStackAnchor) {
-        potStackAnchor.innerHTML = '';
-        if (totalPot > 0) {
-          const potChips = decomposeAmountToChips(totalPot).slice(0, 6);
-          potChips.forEach((denom, idx) => {
-            const meta = getDenomMeta(denom);
-            const disc = document.createElement('div');
-            disc.className = `center-pot-disc ${meta.cls}`;
-            disc.style.transform = `translate3d(0, ${-idx * 3}px, 0)`;
-            potStackAnchor.appendChild(disc);
-          });
-        }
+        potStackAnchor.innerHTML = totalPot > 0
+          ? renderVisualChipStackHTML(totalPot, { mini: false, maxCols: 4, maxPerCol: 7 })
+          : '';
       }
 
       const sideBar = document.getElementById('sidePotsBar');
@@ -5612,7 +6056,13 @@
           if (p.amount <= 0) return;
           const tag = document.createElement('span');
           tag.className = 'side-pot-tag';
-          tag.textContent = `${idx === 0 ? 'Main' : 'Side ' + idx}: ${formatMoney(p.amount)}`;
+          tag.style.display = 'inline-flex';
+          tag.style.alignItems = 'center';
+          tag.style.gap = '6px';
+          tag.innerHTML = `
+            ${renderVisualChipStackHTML(p.amount, { mini: true, maxCols: 2, maxPerCol: 4 })}
+            <span>${idx === 0 ? 'Main' : 'Side ' + idx}: ${formatMoney(p.amount)}</span>
+          `;
           sideBar.appendChild(tag);
         });
       }
@@ -5702,6 +6152,25 @@
         }
 
         container.appendChild(seat);
+
+        // Render miniature 3D Street Bet Chip Stack on the felt in front of the player's seat badge
+        if (!p.isSpectator && p.streetBet > 0) {
+          const betRx = 24.5;
+          const betRy = 23.5;
+          const betXPct = 50 + betRx * Math.cos(rad);
+          const betYPct = 50 + betRy * Math.sin(rad);
+
+          const streetStack = document.createElement('div');
+          streetStack.className = 'seat-street-bet-stack';
+          streetStack.dataset.streetBetPlayerId = p.id;
+          streetStack.style.left = `${betXPct}%`;
+          streetStack.style.top = `${betYPct}%`;
+          streetStack.innerHTML = `
+            ${renderVisualChipStackHTML(p.streetBet, { mini: true, maxCols: 3, maxPerCol: 5 })}
+            <span class="seat-street-bet-amount">${formatMoney(p.streetBet)}</span>
+          `;
+          container.appendChild(streetStack);
+        }
       });
     }
 
@@ -5709,43 +6178,236 @@
       const actor = state.players[state.turnIdx];
       const stackContainer = document.getElementById('stagingChipsStack');
       const pileLabel = document.getElementById('stagingPileLabel');
+      const confirmBtn = document.getElementById('confirmStagedBetBtn');
       if (!stackContainer || !pileLabel) return;
       stackContainer.innerHTML = '';
 
       const stagedDelta = getStagedDeltaSum();
       const canAct = isMyTurnToAct();
+      const showOnboardingHints = (state.handNumber || 1) === 1 && !hasDismissedHints;
+
+      const trayHint = document.getElementById('swipeTrayHintText');
+      if (trayHint) {
+        if (showOnboardingHints) {
+          trayHint.classList.remove('hint-hidden');
+          trayHint.style.display = 'inline';
+        } else {
+          trayHint.classList.add('hint-hidden');
+          trayHint.style.display = 'none';
+        }
+      }
 
       if (stagedChips.length === 0) {
-        pileLabel.className = 'staging-empty-hint';
+        if (confirmBtn) {
+          confirmBtn.style.display = 'none';
+          confirmBtn.classList.remove('armed-pulse');
+        }
+        stackContainer.classList.remove('armed-pulse');
+
         if (state.streetIndex === 4) {
+          pileLabel.className = 'staging-empty-hint';
           pileLabel.textContent = netRole === 'host' ? 'Showdown — Tap a seat or 👑 to award pot' : 'Showdown — Host is awarding the pot...';
-        } else if (canAct && actor) {
-          pileLabel.textContent = netRole === 'client'
-            ? `🟢 Your Turn (${actor.name}): Tap chips to stage bet`
-            : `${actor.name}: Tap chips to stage bet`;
-        } else if (actor) {
-          pileLabel.textContent = `⏳ Waiting for ${actor.name}...`;
+        } else if (showOnboardingHints && canAct && actor) {
+          pileLabel.className = 'staging-empty-hint';
+          pileLabel.textContent = '⬆️ Swipe chips up onto the table to Bet / Raise';
+          scheduleSwipeHintAutoHide();
         } else {
-          pileLabel.textContent = 'Waiting...';
+          // Hand #2+ or once hints are dismissed: 100% clean felt with zero helper text
+          pileLabel.className = 'staging-empty-hint hint-hidden';
+          pileLabel.textContent = '';
         }
       } else {
-        const visibleChips = stagedChips.slice(-10);
+        const visibleChips = stagedChips.slice(-12);
         visibleChips.forEach((item, i) => {
           if (item.landing) return;
           const meta = getDenomMeta(item.denom);
           const disc = document.createElement('div');
           disc.className = `staged-chip-disc ${meta.cls}`;
-          disc.style.transform = `translate3d(${item.scatterX || 0}px, ${-i * 4}px, 0) rotateZ(${item.rotDeg || 0}deg)`;
+          disc.style.transform = `translate3d(${item.scatterX || 0}px, ${-i * 3.8}px, 0) rotateZ(${item.rotDeg || 0}deg)`;
           disc.innerHTML = `<div class="chip-inlay">$${item.denom}</div>`;
           stackContainer.appendChild(disc);
         });
+
         pileLabel.className = 'staging-pile-label';
         const totalBetWithStage = (actor ? actor.streetBet : 0) + stagedDelta;
-        pileLabel.textContent = `Staged: ${formatMoney(totalBetWithStage)} (Tap to pull back)`;
+        const isFirstHand = (state.handNumber || 1) === 1;
+        pileLabel.textContent = isFirstHand
+          ? `Staged: ${formatMoney(totalBetWithStage)} • Slide down to pull back`
+          : `Staged: ${formatMoney(totalBetWithStage)}`;
+
+        if (confirmBtn && actor && canAct) {
+          const { minTarget, maxTotalBet } = getMinRaiseTargetTotal(actor);
+          const isUnopened = state.currentBet === 0;
+          confirmBtn.style.display = 'inline-flex';
+          if (totalBetWithStage < minTarget && totalBetWithStage < maxTotalBet) {
+            stackContainer.classList.remove('armed-pulse');
+            confirmBtn.className = 'confirm-staged-bet-btn needs-more';
+            confirmBtn.textContent = `${isUnopened ? 'Min Bet' : 'Min Raise'} is ${formatMoney(minTarget)}`;
+          } else if (stagedBetConfirmArmed) {
+            stackContainer.classList.add('armed-pulse');
+            confirmBtn.className = 'confirm-staged-bet-btn armed-pulse';
+            confirmBtn.textContent = `Tap Again to Confirm ${formatMoney(totalBetWithStage)}`;
+          } else {
+            stackContainer.classList.remove('armed-pulse');
+            confirmBtn.className = 'confirm-staged-bet-btn';
+            if (totalBetWithStage >= maxTotalBet) {
+              confirmBtn.textContent = isFirstHand
+                ? `Double-Tap for All-In ${formatMoney(maxTotalBet)}`
+                : `All-In ${formatMoney(maxTotalBet)}`;
+            } else {
+              confirmBtn.textContent = isFirstHand
+                ? (isUnopened
+                    ? `Double-Tap to Bet ${formatMoney(totalBetWithStage)}`
+                    : `Double-Tap to Raise ${formatMoney(totalBetWithStage)}`)
+                : (isUnopened
+                    ? `Bet ${formatMoney(totalBetWithStage)}`
+                    : `Raise to ${formatMoney(totalBetWithStage)}`);
+            }
+          }
+        } else if (confirmBtn) {
+          confirmBtn.style.display = 'none';
+        }
       }
     }
 
+    // Bind Slide-Back (Swipe Down) Gesture & Double-Tap Bet Confirmation on the Staged Bet Zone
+    function bindStagingPilePullbackGestures() {
+      const zone = document.getElementById('stagingPileZone');
+      if (!zone || zone.dataset.boundPullback === '1') return;
+      zone.dataset.boundPullback = '1';
+
+      let startX = null;
+      let startY = null;
+
+      zone.addEventListener('pointerdown', (e) => {
+        if (!isMyTurnToAct() || stagedChips.length === 0) return;
+        startX = e.clientX;
+        startY = e.clientY;
+        try { zone.setPointerCapture(e.pointerId); } catch (_) {}
+      });
+
+      zone.addEventListener('pointermove', (e) => {
+        if (startY === null || stagedChips.length === 0) return;
+        const deltaY = e.clientY - startY;
+        const stackEl = document.getElementById('stagingChipsStack');
+        const pileLabel = document.getElementById('stagingPileLabel');
+
+        if (deltaY > 10 && stackEl) {
+          if (deltaY > 110) {
+            stackEl.style.transform = `translate3d(0, ${Math.min(52, deltaY * 0.38)}px, 0) scale(0.92)`;
+            if (pileLabel) pileLabel.textContent = '⬇️ Release to Clear All Staged Chips';
+          } else if (deltaY > 35) {
+            const topDisc = stackEl.lastElementChild;
+            if (topDisc) {
+              topDisc.style.transform = `translate3d(0, ${Math.min(34, deltaY * 0.45)}px, 0) scale(0.96)`;
+            }
+            const topChip = stagedChips[stagedChips.length - 1];
+            if (pileLabel && topChip) {
+              pileLabel.textContent = `⬇️ Release to Return $${topChip.denom} • Pull further to Clear All`;
+            }
+          }
+        }
+      });
+
+      const finishZonePointer = (e) => {
+        if (startY === null) return;
+        const deltaY = e.clientY - startY;
+        const deltaX = Math.abs(e.clientX - (startX || e.clientX));
+        startX = null;
+        startY = null;
+
+        const stackEl = document.getElementById('stagingChipsStack');
+        if (stackEl) stackEl.style.transform = '';
+
+        // 1. Long Slide Down (deltaY > 110px): Clear and slide the ENTIRE staged chip pile back to rack
+        if (deltaY > 110) {
+          clearStagedChipsAnimated();
+          showToast('Cleared staged bet');
+          return;
+        }
+
+        // 2. Slide Down Once (deltaY > 35px): Return top chip from Staged Bet Stack to matching rack slot
+        if (deltaY > 35) {
+          pullBackTopStagedChip();
+          return;
+        }
+
+        // Reset any partial drag visuals if between 20px and 35px
+        if (deltaY > 20) {
+          renderStagingPileOnly();
+          return;
+        }
+
+        // 3. Clean Tap (no single-tap removal! Routes to Double-Tap Confirm Bet / Raise)
+        if (Math.abs(deltaY) <= 20 && deltaX <= 28 && stagedChips.length > 0) {
+          handleRaiseConfirmTap();
+        }
+      };
+
+      zone.addEventListener('pointerup', finishZonePointer);
+      zone.addEventListener('pointercancel', () => {
+        startX = null;
+        startY = null;
+        const stackEl = document.getElementById('stagingChipsStack');
+        if (stackEl) stackEl.style.transform = '';
+        renderStagingPileOnly();
+      });
+    }
+
+    // Bind swipe-up gesture on the Shove All-In Handle
+    function bindShoveAllInSwipeGesture() {
+      const handle = document.getElementById('shoveAllInHandle');
+      if (!handle || handle.dataset.boundShove === '1') return;
+      handle.dataset.boundShove = '1';
+
+      let startY = null;
+      let startTime = 0;
+      let shoved = false;
+
+      handle.addEventListener('pointerdown', (e) => {
+        if (!isMyTurnToAct()) return;
+        startY = e.clientY;
+        startTime = performance.now();
+        shoved = false;
+        try { handle.setPointerCapture(e.pointerId); } catch (_) {}
+      });
+
+      handle.addEventListener('pointermove', (e) => {
+        if (startY === null || shoved) return;
+        const dy = e.clientY - startY;
+        if (dy < 0) {
+          const lift = Math.max(-48, dy * 0.65);
+          handle.style.transform = `translate3d(0, ${lift}px, 0) scale(1.03)`;
+        }
+      });
+
+      const finishGesture = (e) => {
+        if (startY === null) return;
+        handle.style.transform = '';
+        const dy = e.clientY - startY;
+        const dt = Math.max(1, performance.now() - startTime);
+        const velocityY = dy / dt;
+
+        if (!shoved && (dy < -38 || velocityY < -0.35)) {
+          shoved = true;
+          e.preventDefault();
+          e.stopPropagation();
+          triggerAllInShoveCommit(handle);
+        }
+        startY = null;
+      };
+
+      handle.addEventListener('pointerup', finishGesture);
+      handle.addEventListener('pointercancel', () => {
+        startY = null;
+        handle.style.transform = '';
+      });
+    }
+
     function renderStagingPileAndDock() {
+      bindStagingPilePullbackGestures();
+      bindShoveAllInSwipeGesture();
+
       const dock = document.getElementById('actionDock');
       const specBanner = document.getElementById('spectatorClientBanner');
       const waitBanner = document.getElementById('turnWaitBanner');
@@ -5813,22 +6475,60 @@
           }
           chipEl.innerHTML = `<div class="chip-inlay">$${d.val}</div>`;
 
-          let startY = null;
-          let flickHandled = false;
+          // Interactive Swipe-to-Throw Physics Gesture (tracks live finger drag + upward flick velocity)
+          let pStartX = null;
+          let pStartY = null;
+          let pStartTime = 0;
+          let gestureConsumed = false;
+
           chipEl.addEventListener('pointerdown', (e) => {
-            startY = e.clientY;
-            flickHandled = false;
+            if (!canAct) return;
+            markSwipeHintSeen();
+            pStartX = e.clientX;
+            pStartY = e.clientY;
+            pStartTime = performance.now();
+            gestureConsumed = false;
+            chipEl.classList.add('dragging-chip');
+            try { chipEl.setPointerCapture(e.pointerId); } catch (_) {}
           });
-          chipEl.addEventListener('pointerup', (e) => {
-            if (startY !== null && startY - e.clientY > 18) {
-              flickHandled = true;
+
+          chipEl.addEventListener('pointermove', (e) => {
+            if (pStartY === null || gestureConsumed) return;
+            const dx = e.clientX - pStartX;
+            const dy = e.clientY - pStartY;
+            if (dy < 4) {
+              chipEl.style.transform = `translate3d(${dx * 0.55}px, ${dy * 0.85}px, 0) scale(1.18)`;
+            }
+          });
+
+          const releaseChipPointer = (e) => {
+            if (pStartY === null) return;
+            chipEl.classList.remove('dragging-chip');
+            chipEl.style.transform = '';
+
+            const dy = e.clientY - pStartY;
+            const dt = Math.max(1, performance.now() - pStartTime);
+            const velocityY = dy / dt; // px per ms (negative = upward)
+
+            if (dy < -40 || velocityY < -0.3) {
+              gestureConsumed = true;
+              throwChipFromRack(d.val, chipEl, { x: e.clientX, y: e.clientY });
+            } else if (Math.abs(dy) < 14 && dt < 320) {
+              gestureConsumed = true;
               throwChipFromRack(d.val, chipEl);
             }
-            startY = null;
-          });
-          chipEl.onclick = () => {
-            if (!flickHandled) throwChipFromRack(d.val, chipEl);
+            pStartX = null;
+            pStartY = null;
           };
+
+          chipEl.addEventListener('pointerup', releaseChipPointer);
+          chipEl.addEventListener('pointercancel', () => {
+            pStartX = null;
+            pStartY = null;
+            chipEl.classList.remove('dragging-chip');
+            chipEl.style.transform = '';
+          });
+
           rack.appendChild(chipEl);
         });
       }
@@ -5836,7 +6536,6 @@
       if (!actor) return;
 
       const toCall = Math.max(0, state.currentBet - actor.streetBet);
-      const { minTarget, maxTotalBet } = getMinRaiseTargetTotal(actor);
 
       document.getElementById('foldMainLabel').textContent = 'Fold';
       document.getElementById('foldSubLabel').textContent = foldArmed ? 'TAP AGAIN' : (toCall === 0 ? 'Free Check' : '');
@@ -5845,24 +6544,23 @@
       const callSub = document.getElementById('callSubLabel');
       if (toCall === 0) {
         callMain.textContent = 'Check';
-        callSub.textContent = '';
+        callSub.textContent = 'Tap Table';
       } else {
-        callMain.textContent = 'Call';
-        callSub.textContent = formatMoney(Math.min(actor.stack, toCall));
+        const callAmt = Math.min(actor.stack, toCall);
+        callMain.textContent = `Call ${formatMoney(callAmt)}`;
+        callSub.textContent = callAmt >= actor.stack ? 'All-In Call' : 'Toss Call Chips';
       }
 
-      const raiseMain = document.getElementById('raiseMainLabel');
-      const raiseSub = document.getElementById('raiseSubLabel');
-      const isUnopened = state.currentBet === 0;
-      const targetDisplay = stagedDelta > 0
-        ? Math.max(minTarget, Math.min(maxTotalBet, actor.streetBet + stagedDelta))
-        : minTarget;
-
-      raiseMain.textContent = isUnopened ? 'Bet' : 'Raise To';
-      raiseSub.textContent = formatMoney(targetDisplay);
-
-      document.getElementById('allInMainLabel').textContent = 'All-In';
-      document.getElementById('allInSubLabel').textContent = allInArmed ? 'CONFIRM' : formatMoney(actor.stack);
+      const allInMain = document.getElementById('allInMainLabel');
+      const allInSub = document.getElementById('allInSubLabel');
+      if (allInMain) {
+        allInMain.textContent = allInArmed
+          ? '🔥 TAP AGAIN OR SWIPE UP TO CONFIRM ALL-IN'
+          : '⬆️ Swipe Up to Shove All-In';
+      }
+      if (allInSub) {
+        allInSub.textContent = formatMoney(actor.stack);
+      }
     }
 
     function resumeSavedTable() {
@@ -5931,18 +6629,18 @@
       renderAll();
     });
 
-    // Purge any legacy cached builds and register Network-First Service Worker (poker-chips-v1.5)
+    // Purge any legacy cached builds and register Network-First Service Worker (poker-chips-v1.6.1)
     if ('caches' in window) {
       caches.keys().then(keys => {
         keys.forEach(k => {
-          if (k !== 'poker-chips-v1.5') caches.delete(k);
+          if (k !== 'poker-chips-v1.6.1') caches.delete(k);
         });
       }).catch(() => {});
     }
 
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js?v=1.5', { updateViaCache: 'none' })
+        navigator.serviceWorker.register('./sw.js?v=1.6.1', { updateViaCache: 'none' })
           .then(reg => {
             try { reg.update(); } catch (_) {}
           })
