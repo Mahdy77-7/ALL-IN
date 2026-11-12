@@ -1885,7 +1885,7 @@
       </button>
 
       <div style="margin-top:6px; display:flex; justify-content:center;">
-        <span class="app-version-badge" data-version-badge>v1.6.2</span>
+        <span class="app-version-badge" data-version-badge>v1.6.3</span>
       </div>
     </div>
   </section>
@@ -1897,7 +1897,7 @@
     <div class="lobby-card">
       <div class="lobby-top-bar">
         <button class="lobby-back-btn" onclick="showScreen('homeScreen')">← Home</button>
-        <span class="lobby-title">Host Lobby <span class="app-version-badge" data-version-badge style="padding:1px 6px; font-size:0.6rem; margin-left:4px;">v1.6.2</span></span>
+        <span class="lobby-title">Host Lobby <span class="app-version-badge" data-version-badge style="padding:1px 6px; font-size:0.6rem; margin-left:4px;">v1.6.3</span></span>
         <span id="hostRelayStatusBadge" style="font-size:0.68rem; font-weight:800; padding:4px 8px; border-radius:999px; background:rgba(16,185,129,0.12); border:1px solid rgba(16,185,129,0.35); color:#A7F3D0; white-space:nowrap;">🟡 Connecting...</span>
       </div>
 
@@ -1967,7 +1967,7 @@
     <div class="lobby-card">
       <div class="lobby-top-bar">
         <button class="lobby-back-btn" onclick="leaveRoomAsGuest()">← Leave</button>
-        <span class="lobby-title">Join Table <span class="app-version-badge" data-version-badge style="padding:1px 6px; font-size:0.6rem; margin-left:4px;">v1.6.2</span></span>
+        <span class="lobby-title">Join Table <span class="app-version-badge" data-version-badge style="padding:1px 6px; font-size:0.6rem; margin-left:4px;">v1.6.3</span></span>
         <span id="clientRelayStatusBadge" style="font-size:0.68rem; font-weight:800; padding:4px 8px; border-radius:999px; background:rgba(16,185,129,0.12); border:1px solid rgba(16,185,129,0.35); color:#A7F3D0; white-space:nowrap;">🟡 Connecting...</span>
       </div>
 
@@ -2923,7 +2923,7 @@
     /* ==========================================================
        4. LOBBY, NETWORKING & POKER STATE MACHINE
        ========================================================== */
-    const APP_VERSION = 'v1.6.2';
+    const APP_VERSION = 'v1.6.3';
     const STORAGE_KEY = 'felt_poker_state_v3';
     const DEVICE_ID_KEY = 'felt_device_id_v3';
     const STREETS = ['Pre-Flop', 'Flop', 'Turn', 'River', 'Showdown'];
@@ -5673,20 +5673,61 @@
       }
     }
 
-    // Double-Tap Confirmation for Staged Bet / Raise (prevents accidental single-tap confirm)
+    function handlePlayerAction(playerId, action, amount = 0) {
+      const actor = state.players[state.turnIdx];
+      if (!actor || (playerId && actor.id !== playerId)) return;
+      const actLower = String(action || '').toLowerCase();
+      stagedChips = [];
+      disarmStagedBetConfirm();
+
+      if (actLower === 'call' || actLower === 'check') {
+        Sound.potGather();
+        if (sendClientMoveIfRemote({ type: 'CALL', amount })) return;
+        executeCheckOrCall();
+        return;
+      }
+
+      if (actLower === 'allin' || actLower === 'all_in') {
+        const maxTotalBet = actor.streetBet + actor.stack;
+        Sound.allInCascade();
+        if (sendClientMoveIfRemote({ type: 'ALL_IN', targetTotalBet: maxTotalBet })) return;
+        executeBetOrRaiseTo(maxTotalBet);
+        return;
+      }
+
+      if (actLower === 'bet' || actLower === 'raise' || actLower === 'raise_to') {
+        Sound.potGather();
+        if (sendClientMoveIfRemote({ type: 'RAISE_TO', targetTotalBet: amount })) return;
+        executeBetOrRaiseTo(amount);
+        return;
+      }
+
+      if (actLower === 'fold') {
+        if (sendClientMoveIfRemote({ type: 'FOLD' })) return;
+        executeFold();
+      }
+    }
+
+    // Double-Tap Confirmation for Staged Bet / Call / Raise / All-In (prevents accidental single-tap confirm)
     function handleRaiseConfirmTap() {
       if (!isMyTurnToAct() || stagedChips.length === 0) return;
-      const actor = state.players[state.turnIdx];
-      const { maxTotalBet } = getMinRaiseTargetTotal(actor);
-      const stagedDelta = getStagedDeltaSum();
-      const proposedTotal = actor.streetBet + stagedDelta;
+      const activePlayer = state.players[state.turnIdx];
+      if (!activePlayer) return;
+
+      const { maxTotalBet } = getMinRaiseTargetTotal(activePlayer);
+      const stagedBet = getStagedDeltaSum();
+      const toCall = Math.max(0, state.currentBet - (activePlayer.streetBet || 0));
+      const newTotalStreetBet = (activePlayer.streetBet || 0) + stagedBet;
+      const isAllInStage = stagedBet >= activePlayer.stack || newTotalStreetBet >= maxTotalBet;
+      const isExactCallStage = toCall > 0 && stagedBet === toCall && !isAllInStage;
+      const isBelowCallStage = toCall > 0 && stagedBet < toCall && !isAllInStage;
 
       const confirmBtn = document.getElementById('confirmStagedBetBtn');
       const zoneEl = document.getElementById('stagingPileZone');
       const stackEl = document.getElementById('stagingChipsStack');
 
-      // A raise is valid as long as proposedTotal > state.currentBet OR the player is going ALL-IN (proposedTotal >= maxTotalBet)
-      if (proposedTotal <= state.currentBet && proposedTotal < maxTotalBet) {
+      // When stagedBet < toCall (and player is not All-In): shake & prompt to add the remaining call difference
+      if (isBelowCallStage) {
         disarmStagedBetConfirm();
         Sound.vibrate([15, 40, 15]);
         if (zoneEl) {
@@ -5695,12 +5736,13 @@
           zoneEl.classList.add('shake-error');
           setTimeout(() => zoneEl.classList.remove('shake-error'), 380);
         }
-        const neededLabel = `Raise above ${formatMoney(state.currentBet)}`;
+        const diffNeeded = toCall - stagedBet;
+        const neededLabel = `Add ${formatMoney(diffNeeded)} more to Call (or swipe higher to Raise)`;
         if (confirmBtn) {
           confirmBtn.className = 'confirm-staged-bet-btn needs-more';
           confirmBtn.textContent = neededLabel;
         }
-        showToast(neededLabel);
+        showToast(`Add ${formatMoney(diffNeeded)} more to match the bet`);
         return;
       }
 
@@ -5708,7 +5750,7 @@
       const isSecondTapWithinWindow = stagedBetConfirmArmed || (now - lastStagedBetTapTime <= 350);
 
       if (!isSecondTapWithinWindow) {
-        // First Tap: Arm confirmation with gold pulse & "Tap Again to Confirm $X" for 1.5s
+        // First Tap: Arm confirmation with gold pulse for 1.5s
         stagedBetConfirmArmed = true;
         lastStagedBetTapTime = now;
         Sound.vibrate(10);
@@ -5717,7 +5759,13 @@
         if (confirmBtn) {
           confirmBtn.classList.remove('needs-more');
           confirmBtn.classList.add('armed-pulse');
-          confirmBtn.textContent = `Tap Again to Confirm ${formatMoney(proposedTotal)}`;
+          if (isExactCallStage) {
+            confirmBtn.textContent = 'Tap Again to Confirm CALL';
+          } else if (isAllInStage) {
+            confirmBtn.textContent = `Tap Again to Confirm ALL-IN (${formatMoney(maxTotalBet)})`;
+          } else {
+            confirmBtn.textContent = `Tap Again to Confirm ${formatMoney(newTotalStreetBet)}`;
+          }
         }
         if (stackEl) {
           stackEl.classList.add('armed-pulse');
@@ -5732,11 +5780,17 @@
         return;
       }
 
-      // Second Tap Execution: Lock in bet/raise, play multi-chip confirmation sound, and broadcast
-      disarmStagedBetConfirm();
-      Sound.potGather();
-      if (sendClientMoveIfRemote({ type: 'RAISE_TO', targetTotalBet: proposedTotal })) return;
-      executeBetOrRaiseTo(proposedTotal);
+      // Second Tap Execution:
+      // 1. If stagedBet === activePlayer.stack -> Executes ALL-IN
+      // 2. If toCall > 0 && stagedBet === toCall -> Executes CALL
+      // 3. If newTotalStreetBet > state.currentBet -> Executes BET / RAISE
+      if (isAllInStage) {
+        handlePlayerAction(activePlayer.id, 'allin', maxTotalBet);
+      } else if (isExactCallStage) {
+        handlePlayerAction(activePlayer.id, 'call', stagedBet);
+      } else {
+        handlePlayerAction(activePlayer.id, 'raise', newTotalStreetBet);
+      }
     }
 
     function executeBetOrRaiseTo(targetTotalBet) {
@@ -6290,23 +6344,36 @@
 
         if (confirmBtn && actor && canAct) {
           const { maxTotalBet } = getMinRaiseTargetTotal(actor);
+          const toCall = Math.max(0, state.currentBet - (actor.streetBet || 0));
           const isUnopened = state.currentBet === 0;
+          const isAllInStage = stagedDelta >= actor.stack || totalBetWithStage >= maxTotalBet;
+          const isExactCallStage = toCall > 0 && stagedDelta === toCall && !isAllInStage;
+          const isBelowCallStage = toCall > 0 && stagedDelta < toCall && !isAllInStage;
+
           confirmBtn.style.display = 'inline-flex';
-          if (totalBetWithStage <= state.currentBet && totalBetWithStage < maxTotalBet) {
+          if (isBelowCallStage) {
             stackContainer.classList.remove('armed-pulse');
             confirmBtn.className = 'confirm-staged-bet-btn needs-more';
-            confirmBtn.textContent = `Raise above ${formatMoney(state.currentBet)}`;
+            confirmBtn.textContent = `Add ${formatMoney(toCall - stagedDelta)} more to Call (or swipe higher to Raise)`;
           } else if (stagedBetConfirmArmed) {
             stackContainer.classList.add('armed-pulse');
             confirmBtn.className = 'confirm-staged-bet-btn armed-pulse';
-            confirmBtn.textContent = `Tap Again to Confirm ${formatMoney(totalBetWithStage)}`;
+            if (isExactCallStage) {
+              confirmBtn.textContent = 'Tap Again to Confirm CALL';
+            } else if (isAllInStage) {
+              confirmBtn.textContent = `Tap Again to Confirm ALL-IN (${formatMoney(maxTotalBet)})`;
+            } else {
+              confirmBtn.textContent = `Tap Again to Confirm ${formatMoney(totalBetWithStage)}`;
+            }
           } else {
             stackContainer.classList.remove('armed-pulse');
             confirmBtn.className = 'confirm-staged-bet-btn';
-            if (totalBetWithStage >= maxTotalBet) {
+            if (isAllInStage) {
               confirmBtn.textContent = isFirstHand
                 ? `Double-Tap for All-In ${formatMoney(maxTotalBet)}`
                 : `All-In ${formatMoney(maxTotalBet)}`;
+            } else if (isExactCallStage) {
+              confirmBtn.textContent = `👆👆 Double-Tap Pile to CALL (${formatMoney(stagedDelta)})`;
             } else {
               confirmBtn.textContent = isFirstHand
                 ? (isUnopened
@@ -6682,18 +6749,18 @@
       renderAll();
     });
 
-    // Purge any legacy cached builds and register Network-First Service Worker (poker-chips-v1.6.2)
+    // Purge any legacy cached builds and register Network-First Service Worker (poker-chips-v1.6.3)
     if ('caches' in window) {
       caches.keys().then(keys => {
         keys.forEach(k => {
-          if (k !== 'poker-chips-v1.6.2') caches.delete(k);
+          if (k !== 'poker-chips-v1.6.3') caches.delete(k);
         });
       }).catch(() => {});
     }
 
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js?v=1.6.2', { updateViaCache: 'none' })
+        navigator.serviceWorker.register('./sw.js?v=1.6.3', { updateViaCache: 'none' })
           .then(reg => {
             try { reg.update(); } catch (_) {}
           })
